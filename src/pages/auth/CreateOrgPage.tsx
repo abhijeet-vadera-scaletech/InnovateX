@@ -50,6 +50,7 @@ export default function CreateOrgPage() {
   });
 
   const orgName = watch("name");
+  console.log("🚀 ~ CreateOrgPage ~ orgName:", orgName);
 
   // Auto-generate slug from name
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {

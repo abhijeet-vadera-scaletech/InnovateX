@@ -1,25 +1,25 @@
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Settings as SettingsIcon,
-  Building2,
-  Link2,
-  Trophy,
-  FileText,
-  Copy,
-  Check,
-  Loader2,
-  Trash2,
-  Calendar,
-} from "lucide-react";
 import { organisationsApi } from "@/lib/api";
-import toast from "react-hot-toast";
 import { cn } from "@/lib/utils";
+import {
+  Building2,
+  Calendar,
+  Check,
+  Copy,
+  FileText,
+  Link2,
+  Loader2,
+  Settings as SettingsIcon,
+  Trash2,
+  Trophy,
+} from "lucide-react";
+import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 
 type RewardSystem = "LEADERBOARD" | "POINTS" | "COUPONS" | "GIFTS" | "NONE";
 
@@ -100,6 +100,7 @@ export default function Settings() {
   const [copied, setCopied] = useState(false);
   const [organisation, setOrganisation] = useState<Organisation | null>(null);
   const [settings, setSettings] = useState<OrganisationSettings | null>(null);
+  console.log("🚀 ~ Settings ~ settings:", settings);
   const [inviteLinks, setInviteLinks] = useState<InviteLink[]>([]);
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
   const [showGenerateModal, setShowGenerateModal] = useState(false);
