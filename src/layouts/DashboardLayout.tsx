@@ -224,7 +224,7 @@ export default function DashboardLayout() {
       <div className="lg:pl-64">
         {/* Top bar */}
         <header className="sticky top-0 z-30 bg-background/95 backdrop-blur border-b">
-          <div className="flex items-center justify-between px-4 h-16">
+          <div className="flex items-center justify-between px-4 h-[72px]">
             <Button
               variant="ghost"
               size="icon"
