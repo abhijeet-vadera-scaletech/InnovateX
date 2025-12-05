@@ -277,6 +277,7 @@ export default function IdeaCanvasPage() {
         <IdeaCanvas
           ideaId={id}
           initialElements={canvasElements}
+          initialDrawingPaths={drawingPaths}
           title={metadata.title}
           onTitleChange={(title) => setMetadata((prev) => ({ ...prev, title }))}
           onSave={handleSave}

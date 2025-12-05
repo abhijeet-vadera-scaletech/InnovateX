@@ -48,6 +48,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CanvasToolbar } from "./CanvasToolbar";
+import { ConnectorElement } from "./ConnectorElement";
 import { DrawingCanvas } from "./DrawingCanvas";
 import { FrameElement } from "./FrameElement";
 import { IconElement } from "./IconElement";
@@ -67,6 +68,7 @@ import {
 interface IdeaCanvasProps {
   ideaId?: string;
   initialElements?: CanvasElement[];
+  initialDrawingPaths?: string[];
   onSave?: (elements: CanvasElement[], drawingPaths: string[]) => void;
   onSubmit?: (elements: CanvasElement[], drawingPaths: string[]) => void;
   readOnly?: boolean;
@@ -120,6 +122,7 @@ const ICON_OPTIONS: { icon: LucideIcon; label: string; id: string }[] = [
 export function IdeaCanvas({
   ideaId,
   initialElements = [],
+  initialDrawingPaths = [],
   onSave,
   onSubmit,
   readOnly = false,
@@ -138,7 +141,8 @@ export function IdeaCanvas({
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState<Position>({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
-  const [drawingPaths, setDrawingPaths] = useState<string[]>([]);
+  const [drawingPaths, setDrawingPaths] =
+    useState<string[]>(initialDrawingPaths);
   const [strokeColor, setStrokeColor] = useState("#3B82F6");
   const [strokeWidth, setStrokeWidth] = useState(4);
   const [history, setHistory] = useState<CanvasElement[][]>([initialElements]);
@@ -251,6 +255,37 @@ export function IdeaCanvas({
         setShowIconPicker(false);
         setShowAIAssistant(false);
       }
+
+      // Group/Ungroup (Ctrl+G / Ctrl+Shift+G)
+      if ((e.metaKey || e.ctrlKey) && e.key === "g") {
+        e.preventDefault();
+        if (e.shiftKey) {
+          // Ungroup
+          const selectedElements = elements.filter((el) =>
+            selectedIds.includes(el.id)
+          );
+          const groupIds = [
+            ...new Set(
+              selectedElements.map((el) => el.groupId).filter(Boolean)
+            ),
+          ];
+          if (groupIds.length > 0) {
+            const newElements = elements.map((el) =>
+              groupIds.includes(el.groupId) ? { ...el, groupId: undefined } : el
+            );
+            setElements(newElements);
+            pushHistory(newElements);
+          }
+        } else if (selectedIds.length >= 2) {
+          // Group
+          const groupId = `group_${Date.now()}`;
+          const newElements = elements.map((el) =>
+            selectedIds.includes(el.id) ? { ...el, groupId } : el
+          );
+          setElements(newElements);
+          pushHistory(newElements);
+        }
+      }
     };
 
     window.addEventListener("keydown", handleKeyDown);
@@ -273,8 +308,16 @@ export function IdeaCanvas({
     const x = (e.clientX - rect.left - pan.x) / zoom;
     const y = (e.clientY - rect.top - pan.y) / zoom;
 
+    // Only clear selection if clicking directly on canvas background (not on an element)
     if (activeTool === "select") {
-      setSelectedIds([]);
+      // Check if the click target is the canvas itself or its direct transform container
+      const target = e.target as HTMLElement;
+      const isCanvasBackground =
+        target === canvasRef.current ||
+        target.parentElement === canvasRef.current;
+      if (isCanvasBackground) {
+        setSelectedIds([]);
+      }
       return;
     }
 
@@ -402,21 +445,26 @@ export function IdeaCanvas({
       setActiveTool("select");
     }
 
-    // Connector tool - for now, create a line shape
+    // Connector tool - create a proper connector element
     if (activeTool === "connector") {
       const newElement: CanvasElement = {
         id: generateId(),
-        type: "shape",
+        type: "connector",
         position: { x, y },
-        size: { width: 150, height: 4 },
+        size: { width: 150, height: 50 },
         rotation: 0,
         zIndex: elements.length + 1,
         locked: false,
         visible: true,
         data: {
-          shapeType: "arrow",
-          fill: isDark ? "#94A3B8" : "#64748B",
-          stroke: isDark ? "#94A3B8" : "#64748B",
+          startElementId: null,
+          endElementId: null,
+          startPoint: { x, y },
+          endPoint: { x: x + 150, y: y + 50 },
+          lineType: "straight" as const,
+          arrowStart: false,
+          arrowEnd: true,
+          color: isDark ? "#94A3B8" : "#64748B",
           strokeWidth: 2,
         },
       };
@@ -489,15 +537,108 @@ export function IdeaCanvas({
     }
   };
 
-  // Update element
+  // Update element and recalculate connected connectors
   const updateElement = useCallback(
     (id: string, updates: Partial<CanvasElement>) => {
-      const newElements = elements.map((el) =>
-        el.id === id ? { ...el, ...updates } : el
-      );
-      setElements(newElements);
+      setElements((currentElements) => {
+        // First, update the target element
+        let newElements = currentElements.map((el) =>
+          el.id === id ? { ...el, ...updates } : el
+        );
+
+        // If position changed, update all connectors connected to this element
+        if (updates.position) {
+          const movedElement = newElements.find((el) => el.id === id);
+          if (movedElement) {
+            newElements = newElements.map((el) => {
+              if (el.type === "connector") {
+                const connectorData = el.data as any;
+                const isStartConnected = connectorData.startElementId === id;
+                const isEndConnected = connectorData.endElementId === id;
+
+                if (isStartConnected || isEndConnected) {
+                  // Find the connected elements
+                  const startEl = isStartConnected
+                    ? movedElement
+                    : newElements.find(
+                        (e) => e.id === connectorData.startElementId
+                      );
+                  const endEl = isEndConnected
+                    ? movedElement
+                    : newElements.find(
+                        (e) => e.id === connectorData.endElementId
+                      );
+
+                  if (startEl && endEl) {
+                    // Recalculate connection points
+                    const startCenterX =
+                      startEl.position.x + startEl.size.width / 2;
+                    const startCenterY =
+                      startEl.position.y + startEl.size.height / 2;
+                    const endCenterX = endEl.position.x + endEl.size.width / 2;
+                    const endCenterY = endEl.position.y + endEl.size.height / 2;
+
+                    let startPoint = { x: startCenterX, y: startCenterY };
+                    let endPoint = { x: endCenterX, y: endCenterY };
+
+                    // Determine edge connection points
+                    if (endCenterX > startCenterX + startEl.size.width / 2) {
+                      startPoint = {
+                        x: startEl.position.x + startEl.size.width,
+                        y: startCenterY,
+                      };
+                      endPoint = { x: endEl.position.x, y: endCenterY };
+                    } else if (
+                      endCenterX <
+                      startCenterX - startEl.size.width / 2
+                    ) {
+                      startPoint = { x: startEl.position.x, y: startCenterY };
+                      endPoint = {
+                        x: endEl.position.x + endEl.size.width,
+                        y: endCenterY,
+                      };
+                    } else if (endCenterY > startCenterY) {
+                      startPoint = {
+                        x: startCenterX,
+                        y: startEl.position.y + startEl.size.height,
+                      };
+                      endPoint = { x: endCenterX, y: endEl.position.y };
+                    } else {
+                      startPoint = { x: startCenterX, y: startEl.position.y };
+                      endPoint = {
+                        x: endCenterX,
+                        y: endEl.position.y + endEl.size.height,
+                      };
+                    }
+
+                    return {
+                      ...el,
+                      position: {
+                        x: Math.min(startPoint.x, endPoint.x),
+                        y: Math.min(startPoint.y, endPoint.y),
+                      },
+                      size: {
+                        width: Math.abs(endPoint.x - startPoint.x) || 10,
+                        height: Math.abs(endPoint.y - startPoint.y) || 10,
+                      },
+                      data: {
+                        ...connectorData,
+                        startPoint,
+                        endPoint,
+                      },
+                    };
+                  }
+                }
+              }
+              return el;
+            });
+          }
+        }
+
+        return newElements;
+      });
     },
-    [elements]
+    []
   );
 
   // Delete element
@@ -532,6 +673,111 @@ export function IdeaCanvas({
       setSelectedIds([newElement.id]);
     },
     [elements, pushHistory]
+  );
+
+  // Z-Index controls
+  const bringToFront = useCallback(
+    (id: string) => {
+      const maxZ = Math.max(...elements.map((el) => el.zIndex));
+      const newElements = elements.map((el) =>
+        el.id === id ? { ...el, zIndex: maxZ + 1 } : el
+      );
+      setElements(newElements);
+      pushHistory(newElements);
+    },
+    [elements, pushHistory]
+  );
+
+  const sendToBack = useCallback(
+    (id: string) => {
+      const minZ = Math.min(...elements.map((el) => el.zIndex));
+      const newElements = elements.map((el) =>
+        el.id === id ? { ...el, zIndex: minZ - 1 } : el
+      );
+      setElements(newElements);
+      pushHistory(newElements);
+    },
+    [elements, pushHistory]
+  );
+
+  const bringForward = useCallback(
+    (id: string) => {
+      const element = elements.find((el) => el.id === id);
+      if (!element) return;
+
+      // Find elements with higher zIndex
+      const higherElements = elements.filter(
+        (el) => el.zIndex > element.zIndex
+      );
+      if (higherElements.length === 0) return;
+
+      // Find the next element above
+      const nextElement = higherElements.reduce((min, el) =>
+        el.zIndex < min.zIndex ? el : min
+      );
+
+      // Swap zIndex
+      const newElements = elements.map((el) => {
+        if (el.id === id) return { ...el, zIndex: nextElement.zIndex };
+        if (el.id === nextElement.id) return { ...el, zIndex: element.zIndex };
+        return el;
+      });
+      setElements(newElements);
+      pushHistory(newElements);
+    },
+    [elements, pushHistory]
+  );
+
+  const sendBackward = useCallback(
+    (id: string) => {
+      const element = elements.find((el) => el.id === id);
+      if (!element) return;
+
+      // Find elements with lower zIndex
+      const lowerElements = elements.filter((el) => el.zIndex < element.zIndex);
+      if (lowerElements.length === 0) return;
+
+      // Find the next element below
+      const nextElement = lowerElements.reduce((max, el) =>
+        el.zIndex > max.zIndex ? el : max
+      );
+
+      // Swap zIndex
+      const newElements = elements.map((el) => {
+        if (el.id === id) return { ...el, zIndex: nextElement.zIndex };
+        if (el.id === nextElement.id) return { ...el, zIndex: element.zIndex };
+        return el;
+      });
+      setElements(newElements);
+      pushHistory(newElements);
+    },
+    [elements, pushHistory]
+  );
+
+  // Handle element selection with Shift key for multi-select
+  const handleElementSelect = useCallback(
+    (id: string, e?: React.MouseEvent) => {
+      if (readOnly) return;
+
+      // Check if element is part of a group
+      const element = elements.find((el) => el.id === id);
+      const groupId = element?.groupId;
+
+      if (e?.shiftKey) {
+        // Multi-select: toggle selection
+        setSelectedIds((prev) =>
+          prev.includes(id) ? prev.filter((sid) => sid !== id) : [...prev, id]
+        );
+      } else if (groupId) {
+        // Select all elements in the group
+        const groupElements = elements.filter((el) => el.groupId === groupId);
+        setSelectedIds(groupElements.map((el) => el.id));
+      } else {
+        // Single select
+        setSelectedIds([id]);
+      }
+    },
+    [readOnly, elements]
   );
 
   // Handle image upload
@@ -595,16 +841,17 @@ export function IdeaCanvas({
 
         actions.forEach((action, index) => {
           if (action.type === "add_sticky_note") {
-            // Calculate position for new elements - spread them out in a grid
+            // Use AI-provided position or calculate grid position
             const totalIndex = updatedElements.length + newElements.length;
-            const baseX = 100 + (totalIndex % 3) * 260;
-            const baseY = 100 + Math.floor(totalIndex / 3) * 240;
+            const posX = action.payload.x ?? 100 + (totalIndex % 3) * 260;
+            const posY =
+              action.payload.y ?? 100 + Math.floor(totalIndex / 3) * 240;
 
             newElements.push({
               id: generateId(),
               type: "sticky-note",
-              position: { x: baseX, y: baseY },
-              size: { width: 240, height: 180 },
+              position: { x: posX, y: posY },
+              size: { width: 200, height: 150 },
               rotation: 0,
               zIndex: updatedElements.length + newElements.length + 1,
               locked: false,
@@ -619,22 +866,23 @@ export function IdeaCanvas({
             });
           } else if (action.type === "add_text") {
             const totalIndex = updatedElements.length + newElements.length;
-            const baseX = 100 + (totalIndex % 3) * 260;
-            const baseY = 100 + Math.floor(totalIndex / 3) * 240;
+            const posX = action.payload.x ?? 100 + (totalIndex % 3) * 260;
+            const posY =
+              action.payload.y ?? 100 + Math.floor(totalIndex / 3) * 240;
 
             newElements.push({
               id: generateId(),
               type: "text",
-              position: { x: baseX, y: baseY },
-              size: { width: 300, height: 50 },
+              position: { x: posX, y: posY },
+              size: { width: 200, height: 40 },
               rotation: 0,
               zIndex: updatedElements.length + newElements.length + 1,
               locked: false,
               visible: true,
               data: {
                 content: action.payload.content || "",
-                fontSize: 18,
-                fontWeight: "bold",
+                fontSize: 16,
+                fontWeight: "normal",
                 fontFamily: "Inter, sans-serif",
                 color: isDark ? "#FFFFFF" : "#1F2937",
                 align: "left" as const,
@@ -666,6 +914,183 @@ export function IdeaCanvas({
             updatedElements = updatedElements.filter(
               (el) => el.id !== action.targetElementId
             );
+          } else if (action.type === "add_shape") {
+            const totalIndex = updatedElements.length + newElements.length;
+            const posX = action.payload.x ?? 100 + (totalIndex % 3) * 260;
+            const posY =
+              action.payload.y ?? 100 + Math.floor(totalIndex / 3) * 240;
+
+            newElements.push({
+              id: generateId(),
+              type: "shape",
+              position: { x: posX, y: posY },
+              size: { width: 100, height: 100 },
+              rotation: 0,
+              zIndex: updatedElements.length + newElements.length + 1,
+              locked: false,
+              visible: true,
+              data: {
+                shapeType: action.payload.shapeType || "rectangle",
+                fill: action.payload.fill || "#3B82F6",
+                stroke: action.payload.stroke || "#1E40AF",
+                strokeWidth: action.payload.strokeWidth || 2,
+              },
+            });
+          } else if (action.type === "add_icon") {
+            const totalIndex = updatedElements.length + newElements.length;
+            const posX = action.payload.x ?? 100 + (totalIndex % 3) * 260;
+            const posY =
+              action.payload.y ?? 100 + Math.floor(totalIndex / 3) * 240;
+
+            newElements.push({
+              id: generateId(),
+              type: "icon",
+              position: { x: posX, y: posY },
+              size: { width: 48, height: 48 },
+              rotation: 0,
+              zIndex: updatedElements.length + newElements.length + 1,
+              locked: false,
+              visible: true,
+              data: {
+                iconName: action.payload.iconName || "star",
+                color: action.payload.color || "#3B82F6",
+                size: action.payload.size || 32,
+              },
+            });
+          } else if (action.type === "add_frame") {
+            const totalIndex = updatedElements.length + newElements.length;
+            const posX = action.payload.x ?? 50 + (totalIndex % 2) * 450;
+            const posY =
+              action.payload.y ?? 50 + Math.floor(totalIndex / 2) * 350;
+
+            newElements.push({
+              id: generateId(),
+              type: "frame",
+              position: { x: posX, y: posY },
+              size: { width: 400, height: 300 },
+              rotation: 0,
+              zIndex: updatedElements.length + newElements.length + 1,
+              locked: false,
+              visible: true,
+              data: {
+                title: action.payload.title || "Frame",
+                backgroundColor:
+                  action.payload.backgroundColor ||
+                  (isDark
+                    ? "rgba(30, 41, 59, 0.5)"
+                    : "rgba(241, 245, 249, 0.8)"),
+              },
+            });
+          } else if (action.type === "add_connector") {
+            // Resolve element IDs - either from direct IDs or from indices
+            let startElId = action.payload.startElementId;
+            let endElId = action.payload.endElementId;
+
+            // If using indices (from AI), resolve to actual element IDs
+            if (
+              action.payload.startIndex !== undefined &&
+              action.payload.endIndex !== undefined
+            ) {
+              const startIdx = action.payload.startIndex;
+              const endIdx = action.payload.endIndex;
+              if (
+                startIdx < newElements.length &&
+                endIdx < newElements.length
+              ) {
+                startElId = newElements[startIdx]?.id;
+                endElId = newElements[endIdx]?.id;
+              }
+            }
+
+            let startPoint = { x: 100, y: 100 };
+            let endPoint = { x: 250, y: 150 };
+            let resolvedStartId = startElId || null;
+            let resolvedEndId = endElId || null;
+
+            // Find elements from both existing and new elements
+            const allElements = [...updatedElements, ...newElements];
+            const startEl = startElId
+              ? allElements.find((el) => el.id === startElId)
+              : null;
+            const endEl = endElId
+              ? allElements.find((el) => el.id === endElId)
+              : null;
+
+            if (startEl && endEl) {
+              // Calculate edge connection points
+              const startCenterX = startEl.position.x + startEl.size.width / 2;
+              const startCenterY = startEl.position.y + startEl.size.height / 2;
+              const endCenterX = endEl.position.x + endEl.size.width / 2;
+              const endCenterY = endEl.position.y + endEl.size.height / 2;
+
+              // Determine which edges to connect based on relative positions
+              if (endCenterX > startCenterX + startEl.size.width / 2) {
+                // End is to the right
+                startPoint = {
+                  x: startEl.position.x + startEl.size.width,
+                  y: startCenterY,
+                };
+                endPoint = { x: endEl.position.x, y: endCenterY };
+              } else if (endCenterX < startCenterX - startEl.size.width / 2) {
+                // End is to the left
+                startPoint = { x: startEl.position.x, y: startCenterY };
+                endPoint = {
+                  x: endEl.position.x + endEl.size.width,
+                  y: endCenterY,
+                };
+              } else if (endCenterY > startCenterY) {
+                // End is below
+                startPoint = {
+                  x: startCenterX,
+                  y: startEl.position.y + startEl.size.height,
+                };
+                endPoint = { x: endCenterX, y: endEl.position.y };
+              } else {
+                // End is above
+                startPoint = { x: startCenterX, y: startEl.position.y };
+                endPoint = {
+                  x: endCenterX,
+                  y: endEl.position.y + endEl.size.height,
+                };
+              }
+              resolvedStartId = startEl.id;
+              resolvedEndId = endEl.id;
+            } else {
+              // Default positioning for generic connectors
+              const totalIndex = updatedElements.length + newElements.length;
+              const baseX = 100 + (totalIndex % 3) * 260;
+              const baseY = 100 + Math.floor(totalIndex / 3) * 240;
+              startPoint = { x: baseX, y: baseY };
+              endPoint = { x: baseX + 150, y: baseY + 50 };
+            }
+
+            newElements.push({
+              id: generateId(),
+              type: "connector",
+              position: {
+                x: Math.min(startPoint.x, endPoint.x),
+                y: Math.min(startPoint.y, endPoint.y),
+              },
+              size: {
+                width: Math.abs(endPoint.x - startPoint.x) || 150,
+                height: Math.abs(endPoint.y - startPoint.y) || 50,
+              },
+              rotation: 0,
+              zIndex: updatedElements.length + newElements.length + 1,
+              locked: false,
+              visible: true,
+              data: {
+                startElementId: resolvedStartId,
+                endElementId: resolvedEndId,
+                startPoint,
+                endPoint,
+                lineType: action.payload.lineType || "straight",
+                arrowStart: action.payload.arrowStart || false,
+                arrowEnd: action.payload.arrowEnd !== false,
+                color: action.payload.color || "#94A3B8",
+                strokeWidth: action.payload.strokeWidth || 2,
+              },
+            });
           }
         });
 
@@ -702,11 +1127,15 @@ export function IdeaCanvas({
     const commonProps = {
       element,
       isSelected,
-      onSelect: () => !readOnly && setSelectedIds([element.id]),
+      onSelect: (e?: React.MouseEvent) => handleElementSelect(element.id, e),
       onUpdate: (updates: Partial<CanvasElement>) =>
         !readOnly && updateElement(element.id, updates),
       onDelete: () => !readOnly && deleteElement(element.id),
       onDuplicate: () => !readOnly && duplicateElement(element.id),
+      onBringToFront: () => bringToFront(element.id),
+      onSendToBack: () => sendToBack(element.id),
+      onBringForward: () => bringForward(element.id),
+      onSendBackward: () => sendBackward(element.id),
       scale: zoom,
       readOnly,
     };
@@ -724,6 +1153,14 @@ export function IdeaCanvas({
         return <FrameElement key={element.id} {...commonProps} />;
       case "icon":
         return <IconElement key={element.id} {...commonProps} />;
+      case "connector":
+        return (
+          <ConnectorElement
+            key={element.id}
+            {...commonProps}
+            allElements={elements}
+          />
+        );
       default:
         return null;
     }

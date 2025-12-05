@@ -15,7 +15,7 @@ import { CanvasElement, TextData, SHAPE_COLORS } from "./types";
 interface TextElementProps {
   element: CanvasElement;
   isSelected: boolean;
-  onSelect: () => void;
+  onSelect: (e?: React.MouseEvent) => void;
   onUpdate: (updates: Partial<CanvasElement>) => void;
   onDelete: () => void;
   onDuplicate: () => void;
@@ -54,7 +54,7 @@ export function TextElement({
   const handleMouseDown = (e: React.MouseEvent) => {
     if (readOnly || element.locked || isEditing) return;
     e.stopPropagation();
-    onSelect();
+    onSelect(e);
     setIsDragging(true);
     dragStart.current = {
       x: e.clientX - element.position.x * scale,
@@ -147,7 +147,6 @@ export function TextElement({
       onDoubleClick={handleDoubleClick}
       onClick={(e) => {
         e.stopPropagation();
-        if (!readOnly) onSelect();
       }}
     >
       {/* Text content */}

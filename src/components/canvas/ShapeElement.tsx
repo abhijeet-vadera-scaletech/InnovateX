@@ -6,7 +6,7 @@ import { CanvasElement, ShapeData, ShapeType, SHAPE_COLORS } from "./types";
 interface ShapeElementProps {
   element: CanvasElement;
   isSelected: boolean;
-  onSelect: () => void;
+  onSelect: (e?: React.MouseEvent) => void;
   onUpdate: (updates: Partial<CanvasElement>) => void;
   onDelete: () => void;
   onDuplicate: () => void;
@@ -95,7 +95,7 @@ export function ShapeElement({
   const handleMouseDown = (e: React.MouseEvent) => {
     if (readOnly || element.locked) return;
     e.stopPropagation();
-    onSelect();
+    onSelect(e);
     setIsDragging(true);
     dragStart.current = {
       x: e.clientX - element.position.x * scale,
@@ -197,7 +197,6 @@ export function ShapeElement({
       onMouseDown={handleMouseDown}
       onClick={(e) => {
         e.stopPropagation();
-        if (!readOnly) onSelect();
       }}
     >
       {/* Shape SVG */}

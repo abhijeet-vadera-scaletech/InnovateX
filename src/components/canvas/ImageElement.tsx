@@ -6,7 +6,7 @@ import { CanvasElement, ImageData } from "./types";
 interface ImageElementProps {
   element: CanvasElement;
   isSelected: boolean;
-  onSelect: () => void;
+  onSelect: (e?: React.MouseEvent) => void;
   onUpdate: (updates: Partial<CanvasElement>) => void;
   onDelete: () => void;
   onDuplicate: () => void;
@@ -34,7 +34,7 @@ export function ImageElement({
   const handleMouseDown = (e: React.MouseEvent) => {
     if (readOnly || element.locked) return;
     e.stopPropagation();
-    onSelect();
+    onSelect(e);
     setIsDragging(true);
     dragStart.current = {
       x: e.clientX - element.position.x * scale,

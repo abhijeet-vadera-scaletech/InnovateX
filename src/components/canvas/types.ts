@@ -39,6 +39,7 @@ export interface CanvasElement {
   locked: boolean;
   visible: boolean;
   data: ElementData;
+  groupId?: string; // For element grouping
 }
 
 export interface StickyNoteData {

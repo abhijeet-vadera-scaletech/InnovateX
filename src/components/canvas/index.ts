@@ -8,4 +8,5 @@ export * from "./ImageElement";
 export * from "./DrawingCanvas";
 export * from "./FrameElement";
 export * from "./IconElement";
+export * from "./ConnectorElement";
 export * from "./AIAssistantPanel";

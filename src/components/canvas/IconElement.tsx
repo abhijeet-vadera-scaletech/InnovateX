@@ -44,7 +44,7 @@ import { CanvasElement, IconData, SHAPE_COLORS } from "./types";
 interface IconElementProps {
   element: CanvasElement;
   isSelected: boolean;
-  onSelect: () => void;
+  onSelect: (e?: React.MouseEvent) => void;
   onUpdate: (updates: Partial<CanvasElement>) => void;
   onDelete: () => void;
   onDuplicate: () => void;
@@ -112,7 +112,7 @@ export function IconElement({
   const handleMouseDown = (e: React.MouseEvent) => {
     if (readOnly || element.locked) return;
     e.stopPropagation();
-    onSelect();
+    onSelect(e);
     setIsDragging(true);
     dragStart.current = {
       x: e.clientX - element.position.x * scale,

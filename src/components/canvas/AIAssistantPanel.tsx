@@ -5,9 +5,9 @@ import {
   X,
   Loader2,
   Wand2,
-  ImagePlus,
   GripVertical,
   Edit3,
+  Minimize2,
   ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -268,13 +268,6 @@ Try asking me to add a problem statement, solution, or benefits!`,
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
-
   const handleSuggestionClick = (suggestion: string) => {
     setInputValue(suggestion);
     inputRef.current?.focus();
@@ -376,279 +369,252 @@ Try asking me to add a problem statement, solution, or benefits!`,
     );
   };
 
+  if (!isOpen) return null;
+
   return (
-    <div
-      className={cn(
-        "fixed top-0 right-0 h-full bg-white dark:bg-slate-900 shadow-2xl border-l border-slate-200 dark:border-slate-700 z-50 flex flex-col transition-all duration-300 ease-in-out",
-        isOpen ? "w-[400px] translate-x-0" : "w-0 translate-x-full"
-      )}
-    >
-      {isOpen && (
-        <>
-          {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700 shrink-0">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
-                <Sparkles className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <h2 className="font-semibold text-slate-900 dark:text-white">
-                  AI Assistant
-                </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Helps you build your idea
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
+    <div className="absolute top-16 right-4 z-40 w-72 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden max-h-[calc(100vh-120px)]">
+      {/* Header */}
+      <div className="flex items-center justify-between px-3 py-2.5 border-b border-slate-200 dark:border-slate-700 shrink-0 bg-slate-50 dark:bg-slate-800">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+            <Sparkles className="w-3.5 h-3.5 text-white" />
           </div>
+          <span className="font-medium text-slate-900 dark:text-white text-sm">
+            AI Assistant
+          </span>
+        </div>
+        <button
+          onClick={onClose}
+          className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-md transition-colors"
+        >
+          <Minimize2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
 
-          {/* Messages */}
-          <div
-            className={cn(
-              "flex-1 overflow-y-auto p-4 space-y-4",
-              isDragOver && "bg-blue-50 dark:bg-blue-900/20"
-            )}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-          >
-            {isLoadingHistory ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
-              </div>
-            ) : (
-              <>
-                {messages.map((msg, index) => (
-                  <div
-                    key={msg.id || index}
-                    className={cn(
-                      "flex",
-                      msg.role === "user" ? "justify-end" : "justify-start"
-                    )}
-                  >
-                    <div
-                      className={cn(
-                        "max-w-[90%] rounded-2xl px-4 py-3",
-                        msg.role === "user"
-                          ? "bg-blue-500 text-white"
-                          : "bg-slate-100 dark:bg-slate-800"
-                      )}
-                    >
-                      {/* Show attached elements */}
-                      {msg.elementContext && msg.elementContext.length > 0 && (
-                        <div className="mb-2 pb-2 border-b border-white/20 dark:border-slate-700">
-                          <p className="text-xs opacity-75 mb-1">
-                            Targeting elements:
-                          </p>
-                          {msg.elementContext.map((el) => (
-                            <div
-                              key={el.id}
-                              className="text-xs bg-white/10 dark:bg-slate-700 rounded px-2 py-1 mt-1"
-                            >
-                              {el.type}: {el.content.substring(0, 50)}
-                              {el.content.length > 50 ? "..." : ""}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Show attached images */}
-                      {msg.attachments &&
-                        msg.attachments.filter((a) => a.type === "image")
-                          .length > 0 && (
-                          <div className="mb-2 flex flex-wrap gap-2">
-                            {msg.attachments
-                              .filter((a) => a.type === "image")
-                              .map((att, i) => (
-                                <img
-                                  key={i}
-                                  src={att.data}
-                                  alt="Attached"
-                                  className="w-16 h-16 object-cover rounded-lg"
-                                />
-                              ))}
-                          </div>
-                        )}
-
-                      <p className="text-sm whitespace-pre-wrap">
-                        {msg.content}
-                      </p>
-
-                      {msg.actions && msg.actions.length > 0 && (
-                        <div className="mt-2 pt-2 border-t border-white/20 dark:border-slate-700">
-                          <p className="text-xs opacity-75 flex items-center gap-1">
-                            <Wand2 className="w-3 h-3" />
-                            {getActionSummary(msg.actions)}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-
-                {isLoading && (
-                  <div className="flex justify-start">
-                    <div className="bg-slate-100 dark:bg-slate-800 rounded-2xl px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span className="text-sm text-slate-500">
-                          Thinking...
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {isDragOver && (
-                  <div className="flex items-center justify-center py-8 border-2 border-dashed border-blue-400 rounded-xl">
-                    <p className="text-blue-500 text-sm">
-                      Drop elements or images here
-                    </p>
-                  </div>
-                )}
-
-                <div ref={messagesEndRef} />
-              </>
-            )}
+      {/* Messages */}
+      <div
+        className={cn(
+          "flex-1 overflow-y-auto p-3 space-y-2 min-h-[100px] max-h-[250px]",
+          isDragOver && "bg-blue-50 dark:bg-blue-900/20"
+        )}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        {isLoadingHistory ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
           </div>
-
-          {/* Target Elements */}
-          {targetElements.length > 0 && (
-            <div className="px-4 py-2 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
-              <p className="text-xs text-slate-500 dark:text-slate-400 mb-2 flex items-center gap-1">
-                <Edit3 className="w-3 h-3" />
-                Targeting elements:
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {targetElements.map((el) => (
-                  <div
-                    key={el.id}
-                    className="flex items-center gap-1 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-1 rounded-full"
-                  >
-                    <GripVertical className="w-3 h-3" />
-                    <span className="max-w-[150px] truncate">
-                      {el.type}: {el.content.substring(0, 20)}
-                    </span>
-                    <button
-                      onClick={() => removeTargetElement(el.id)}
-                      className="hover:text-red-500"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Attachments Preview */}
-          {attachments.length > 0 && (
-            <div className="px-4 py-2 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
-              <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
-                Attachments:
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {attachments.map((att, index) => (
-                  <div key={index} className="relative group">
-                    {att.type === "image" && (
-                      <img
-                        src={att.data}
-                        alt="Attachment"
-                        className="w-12 h-12 object-cover rounded-lg"
-                      />
-                    )}
-                    <button
-                      onClick={() => removeAttachment(index)}
-                      className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Suggestions */}
-          {suggestions.length > 0 && messages.length <= 1 && (
-            <div className="px-4 py-2 border-t border-slate-200 dark:border-slate-700">
-              <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
-                Quick suggestions:
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {suggestions.map((suggestion, index) => (
-                  <button
-                    key={index}
-                    onClick={() => handleSuggestionClick(suggestion)}
-                    className="text-xs px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors flex items-center gap-1"
-                  >
-                    <ChevronRight className="w-3 h-3" />
-                    {suggestion}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Input Area */}
-          <div className="p-4 border-t border-slate-200 dark:border-slate-700 shrink-0 bg-white dark:bg-slate-900">
-            <div className="flex items-end gap-2">
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors text-slate-500"
-                title="Attach image"
+        ) : (
+          <>
+            {messages.map((msg, index) => (
+              <div
+                key={msg.id || index}
+                className={cn(
+                  "flex",
+                  msg.role === "user" ? "justify-end" : "justify-start"
+                )}
               >
-                <ImagePlus className="w-5 h-5" />
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                multiple
-                className="hidden"
-                onChange={handleImageUpload}
-              />
-              <div className="flex-1 relative">
-                <textarea
-                  ref={inputRef}
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder={
-                    targetElements.length > 0
-                      ? "What would you like to do with these elements?"
-                      : "Ask me to add or modify content..."
-                  }
-                  className="w-full px-4 py-3 pr-12 bg-slate-100 dark:bg-slate-800 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all resize-none min-h-[48px] max-h-[120px]"
-                  disabled={isLoading}
-                  rows={1}
-                />
-                <button
-                  onClick={handleSend}
-                  disabled={!inputValue.trim() || isLoading}
+                <div
                   className={cn(
-                    "absolute right-2 bottom-2 p-2 rounded-lg transition-colors",
-                    inputValue.trim() && !isLoading
-                      ? "bg-blue-500 text-white hover:bg-blue-600"
-                      : "bg-slate-200 dark:bg-slate-700 text-slate-400 cursor-not-allowed"
+                    "max-w-[85%] rounded-2xl px-4 py-2.5",
+                    msg.role === "user"
+                      ? "bg-blue-500 text-white"
+                      : "bg-slate-100 dark:bg-slate-800"
                   )}
                 >
-                  <Send className="w-4 h-4" />
+                  {/* Show attached elements */}
+                  {msg.elementContext && msg.elementContext.length > 0 && (
+                    <div className="mb-2 pb-2 border-b border-white/20 dark:border-slate-700">
+                      <p className="text-xs opacity-75 mb-1">
+                        Targeting elements:
+                      </p>
+                      {msg.elementContext.map((el) => (
+                        <div
+                          key={el.id}
+                          className="text-xs bg-white/10 dark:bg-slate-700 rounded px-2 py-1 mt-1"
+                        >
+                          {el.type}: {el.content.substring(0, 50)}
+                          {el.content.length > 50 ? "..." : ""}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Show attached images */}
+                  {msg.attachments &&
+                    msg.attachments.filter((a) => a.type === "image").length >
+                      0 && (
+                      <div className="mb-2 flex flex-wrap gap-2">
+                        {msg.attachments
+                          .filter((a) => a.type === "image")
+                          .map((att, i) => (
+                            <img
+                              key={i}
+                              src={att.data}
+                              alt="Attached"
+                              className="w-14 h-14 object-cover rounded-lg"
+                            />
+                          ))}
+                      </div>
+                    )}
+
+                  <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+
+                  {msg.actions && msg.actions.length > 0 && (
+                    <div className="mt-2 pt-2 border-t border-white/20 dark:border-slate-700">
+                      <p className="text-xs opacity-75 flex items-center gap-1">
+                        <Wand2 className="w-3 h-3" />
+                        {getActionSummary(msg.actions)}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {isLoading && (
+              <div className="flex justify-start">
+                <div className="bg-slate-100 dark:bg-slate-800 rounded-2xl px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span className="text-sm text-slate-500">Thinking...</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {isDragOver && (
+              <div className="flex items-center justify-center py-8 border-2 border-dashed border-blue-400 rounded-xl">
+                <p className="text-blue-500 text-sm">
+                  Drop elements or images here
+                </p>
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
+          </>
+        )}
+      </div>
+
+      {/* Target Elements */}
+      {targetElements.length > 0 && (
+        <div className="px-4 py-2 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mb-2 flex items-center gap-1">
+            <Edit3 className="w-3 h-3" />
+            Targeting elements:
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {targetElements.map((el) => (
+              <div
+                key={el.id}
+                className="flex items-center gap-1 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-1 rounded-full"
+              >
+                <GripVertical className="w-3 h-3" />
+                <span className="max-w-[150px] truncate">
+                  {el.type}: {el.content.substring(0, 20)}
+                </span>
+                <button
+                  onClick={() => removeTargetElement(el.id)}
+                  className="hover:text-red-500"
+                >
+                  <X className="w-3 h-3" />
                 </button>
               </div>
-            </div>
-            <p className="text-xs text-slate-400 mt-2 text-center">
-              Drag elements here to target them for modification
-            </p>
+            ))}
           </div>
-        </>
+        </div>
       )}
+
+      {/* Attachments Preview */}
+      {attachments.length > 0 && (
+        <div className="px-4 py-2 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
+            Attachments:
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {attachments.map((att, index) => (
+              <div key={index} className="relative group">
+                {att.type === "image" && (
+                  <img
+                    src={att.data}
+                    alt="Attachment"
+                    className="w-12 h-12 object-cover rounded-lg"
+                  />
+                )}
+                <button
+                  onClick={() => removeAttachment(index)}
+                  className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Suggestions */}
+      {suggestions.length > 0 && messages.length <= 1 && (
+        <div className="px-4 py-2 border-t border-slate-200 dark:border-slate-700">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
+            Quick suggestions:
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {suggestions.map((suggestion, index) => (
+              <button
+                key={index}
+                onClick={() => handleSuggestionClick(suggestion)}
+                className="text-xs px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors flex items-center gap-1"
+              >
+                <ChevronRight className="w-3 h-3" />
+                {suggestion}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Input Area - Simple like screenshot */}
+      <div className="p-3 border-t border-slate-200 dark:border-slate-700 shrink-0">
+        <div className="flex items-center gap-2">
+          <input
+            ref={inputRef as any}
+            type="text"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
+            placeholder="Type your reply..."
+            className="flex-1 px-3 py-2 bg-slate-100 dark:bg-slate-700 rounded-lg text-sm outline-none placeholder:text-slate-400"
+            disabled={isLoading}
+          />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={handleImageUpload}
+          />
+          <button
+            onClick={handleSend}
+            disabled={!inputValue.trim() || isLoading}
+            className={cn(
+              "p-2 rounded-lg transition-all",
+              inputValue.trim() && !isLoading
+                ? "bg-blue-500 text-white hover:bg-blue-600"
+                : "bg-slate-200 dark:bg-slate-600 text-slate-400 cursor-not-allowed"
+            )}
+          >
+            <Send className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

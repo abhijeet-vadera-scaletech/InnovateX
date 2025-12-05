@@ -1,15 +1,29 @@
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { GripVertical, Trash2, Copy, Lock, Unlock } from "lucide-react";
+import {
+  GripVertical,
+  Trash2,
+  Copy,
+  Lock,
+  Unlock,
+  ArrowUp,
+  ArrowDown,
+  ChevronsUp,
+  ChevronsDown,
+} from "lucide-react";
 import { CanvasElement, StickyNoteData, STICKY_COLORS } from "./types";
 
 interface StickyNoteProps {
   element: CanvasElement;
   isSelected: boolean;
-  onSelect: () => void;
+  onSelect: (e?: React.MouseEvent) => void;
   onUpdate: (updates: Partial<CanvasElement>) => void;
   onDelete: () => void;
   onDuplicate: () => void;
+  onBringToFront?: () => void;
+  onSendToBack?: () => void;
+  onBringForward?: () => void;
+  onSendBackward?: () => void;
   scale: number;
   readOnly?: boolean;
 }
@@ -21,6 +35,10 @@ export function StickyNote({
   onUpdate,
   onDelete,
   onDuplicate,
+  onBringToFront,
+  onSendToBack,
+  onBringForward,
+  onSendBackward,
   scale,
   readOnly = false,
 }: StickyNoteProps) {
@@ -45,7 +63,7 @@ export function StickyNote({
   const handleMouseDown = (e: React.MouseEvent) => {
     if (readOnly || element.locked || isEditing) return;
     e.stopPropagation();
-    onSelect();
+    onSelect(e);
     setIsDragging(true);
     dragStart.current = {
       x: e.clientX - element.position.x * scale,
@@ -165,7 +183,8 @@ export function StickyNote({
       onDoubleClick={handleDoubleClick}
       onClick={(e) => {
         e.stopPropagation();
-        if (!readOnly) onSelect();
+        // Don't call onSelect here - it's already called in onMouseDown
+        // This prevents double-selection issues
       }}
     >
       {/* Sticky note body */}
@@ -276,6 +295,38 @@ export function StickyNote({
               title="Delete"
             >
               <Trash2 className="w-4 h-4" />
+            </button>
+
+            <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1" />
+
+            {/* Z-Index controls */}
+            <button
+              onClick={onBringToFront}
+              className="p-1 text-slate-600 dark:text-slate-400 hover:text-blue-500 transition-colors"
+              title="Bring to Front"
+            >
+              <ChevronsUp className="w-4 h-4" />
+            </button>
+            <button
+              onClick={onBringForward}
+              className="p-1 text-slate-600 dark:text-slate-400 hover:text-blue-500 transition-colors"
+              title="Bring Forward"
+            >
+              <ArrowUp className="w-4 h-4" />
+            </button>
+            <button
+              onClick={onSendBackward}
+              className="p-1 text-slate-600 dark:text-slate-400 hover:text-blue-500 transition-colors"
+              title="Send Backward"
+            >
+              <ArrowDown className="w-4 h-4" />
+            </button>
+            <button
+              onClick={onSendToBack}
+              className="p-1 text-slate-600 dark:text-slate-400 hover:text-blue-500 transition-colors"
+              title="Send to Back"
+            >
+              <ChevronsDown className="w-4 h-4" />
             </button>
           </div>
 

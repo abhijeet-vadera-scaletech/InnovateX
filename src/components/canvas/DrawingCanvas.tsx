@@ -15,6 +15,51 @@ interface DrawingCanvasProps {
   panOffset: { x: number; y: number };
 }
 
+// Helper to check if a point is near a path
+const isPointNearPath = (
+  point: { x: number; y: number },
+  pathData: string,
+  threshold: number
+): boolean => {
+  const parts = pathData.split("|");
+  if (parts.length < 3) return false;
+
+  const points = parts.slice(2);
+  for (let i = 0; i < points.length - 1; i++) {
+    const [x1, y1] = points[i].split(",").map(Number);
+    const [x2, y2] = points[i + 1].split(",").map(Number);
+
+    // Calculate distance from point to line segment
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const length = Math.sqrt(dx * dx + dy * dy);
+
+    if (length === 0) {
+      const dist = Math.sqrt(
+        Math.pow(point.x - x1, 2) + Math.pow(point.y - y1, 2)
+      );
+      if (dist < threshold) return true;
+      continue;
+    }
+
+    const t = Math.max(
+      0,
+      Math.min(
+        1,
+        ((point.x - x1) * dx + (point.y - y1) * dy) / (length * length)
+      )
+    );
+    const projX = x1 + t * dx;
+    const projY = y1 + t * dy;
+    const dist = Math.sqrt(
+      Math.pow(point.x - projX, 2) + Math.pow(point.y - projY, 2)
+    );
+
+    if (dist < threshold) return true;
+  }
+  return false;
+};
+
 export function DrawingCanvas({
   isActive,
   strokeColor,
@@ -30,7 +75,12 @@ export function DrawingCanvas({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentPath, setCurrentPath] = useState<string>("");
+  const [eraserPosition, setEraserPosition] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
   const lastPoint = useRef<{ x: number; y: number } | null>(null);
+  const eraserSize = 20;
 
   // Redraw all paths when paths change
   useEffect(() => {
@@ -90,17 +140,41 @@ export function DrawingCanvas({
     setIsDrawing(true);
     lastPoint.current = point;
 
-    // Start new path
-    const pathStart = `${isEraser ? "#FFFFFF" : strokeColor}|${strokeWidth}|${
-      point.x
-    },${point.y}`;
-    setCurrentPath(pathStart);
+    if (isEraser) {
+      // Eraser mode: check if we're clicking on any path and remove it
+      const pathsToKeep = paths.filter(
+        (pathData) => !isPointNearPath(point, pathData, eraserSize)
+      );
+      if (pathsToKeep.length !== paths.length) {
+        onPathsChange(pathsToKeep);
+      }
+      setEraserPosition(point);
+    } else {
+      // Drawing mode: start new path
+      const pathStart = `${strokeColor}|${strokeWidth}|${point.x},${point.y}`;
+      setCurrentPath(pathStart);
+    }
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDrawing || !isActive) return;
-
     const point = getCanvasPoint(e);
+
+    if (isEraser && isActive) {
+      setEraserPosition(point);
+
+      if (isDrawing) {
+        // Continuously erase paths while dragging
+        const pathsToKeep = paths.filter(
+          (pathData) => !isPointNearPath(point, pathData, eraserSize)
+        );
+        if (pathsToKeep.length !== paths.length) {
+          onPathsChange(pathsToKeep);
+        }
+      }
+      return;
+    }
+
+    if (!isDrawing || !isActive) return;
 
     // Add point to current path
     setCurrentPath((prev) => `${prev}|${point.x},${point.y}`);
@@ -117,7 +191,7 @@ export function DrawingCanvas({
     ctx.scale(scale, scale);
 
     ctx.beginPath();
-    ctx.strokeStyle = isEraser ? "#FFFFFF" : strokeColor;
+    ctx.strokeStyle = strokeColor;
     ctx.lineWidth = strokeWidth;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
@@ -131,7 +205,7 @@ export function DrawingCanvas({
   };
 
   const handleMouseUp = () => {
-    if (isDrawing && currentPath) {
+    if (isDrawing && currentPath && !isEraser) {
       onPathsChange([...paths, currentPath]);
       setCurrentPath("");
     }
@@ -140,6 +214,7 @@ export function DrawingCanvas({
   };
 
   const handleMouseLeave = () => {
+    setEraserPosition(null);
     if (isDrawing) {
       handleMouseUp();
     }
@@ -169,13 +244,28 @@ export function DrawingCanvas({
         ref={canvasRef}
         className={cn(
           "absolute inset-0 z-10",
-          isActive ? "cursor-crosshair" : "pointer-events-none"
+          isActive && !isEraser && "cursor-crosshair",
+          isEraser && "cursor-none",
+          !isActive && "pointer-events-none"
         )}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseLeave}
       />
+
+      {/* Eraser cursor indicator */}
+      {isEraser && isActive && eraserPosition && (
+        <div
+          className="pointer-events-none fixed z-50 rounded-full border-2 border-slate-500 bg-white/30"
+          style={{
+            width: eraserSize * 2,
+            height: eraserSize * 2,
+            left: eraserPosition.x * scale + panOffset.x - eraserSize,
+            top: eraserPosition.y * scale + panOffset.y - eraserSize,
+          }}
+        />
+      )}
 
       {/* Drawing toolbar */}
       {isActive && (
