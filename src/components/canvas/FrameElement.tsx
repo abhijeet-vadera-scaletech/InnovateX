@@ -1,7 +1,21 @@
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { Trash2, Copy, Lock, Unlock, Edit3 } from "lucide-react";
+import { Trash2, Copy, Lock, Unlock, Edit3, Palette } from "lucide-react";
 import { CanvasElement, FrameData } from "./types";
+
+// Frame color presets
+const FRAME_COLORS = [
+  { name: "Purple", value: "rgba(139, 92, 246, 0.15)", border: "#8B5CF6" },
+  { name: "Blue", value: "rgba(59, 130, 246, 0.15)", border: "#3B82F6" },
+  { name: "Teal", value: "rgba(20, 184, 166, 0.15)", border: "#14B8A6" },
+  { name: "Green", value: "rgba(34, 197, 94, 0.15)", border: "#22C55E" },
+  { name: "Yellow", value: "rgba(234, 179, 8, 0.15)", border: "#EAB308" },
+  { name: "Orange", value: "rgba(249, 115, 22, 0.15)", border: "#F97316" },
+  { name: "Red", value: "rgba(239, 68, 68, 0.15)", border: "#EF4444" },
+  { name: "Pink", value: "rgba(236, 72, 153, 0.15)", border: "#EC4899" },
+  { name: "Gray", value: "rgba(107, 114, 128, 0.15)", border: "#6B7280" },
+  { name: "Slate", value: "rgba(100, 116, 139, 0.15)", border: "#64748B" },
+];
 
 interface FrameElementProps {
   element: CanvasElement;
@@ -28,9 +42,11 @@ export function FrameElement({
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [showColorPicker, setShowColorPicker] = useState(false);
   const [title, setTitle] = useState(data.title);
   const frameRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const colorPickerRef = useRef<HTMLDivElement>(null);
   const dragStart = useRef({ x: 0, y: 0 });
   const resizeStart = useRef({ width: 0, height: 0, x: 0, y: 0 });
 
@@ -40,6 +56,30 @@ export function FrameElement({
       inputRef.current.select();
     }
   }, [isEditingTitle]);
+
+  // Close color picker when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        colorPickerRef.current &&
+        !colorPickerRef.current.contains(e.target as Node)
+      ) {
+        setShowColorPicker(false);
+      }
+    };
+    if (showColorPicker) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () =>
+        document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [showColorPicker]);
+
+  const handleColorChange = (color: string) => {
+    onUpdate({
+      data: { ...data, backgroundColor: color },
+    });
+    setShowColorPicker(false);
+  };
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (readOnly || element.locked || isEditingTitle) return;
@@ -135,7 +175,8 @@ export function FrameElement({
       onMouseDown={handleMouseDown}
       onClick={(e) => {
         e.stopPropagation();
-        if (!readOnly) onSelect();
+        // Don't call onSelect here - it's already called in onMouseDown
+        // This prevents double-selection issues
       }}
     >
       {/* Frame body */}
@@ -197,6 +238,42 @@ export function FrameElement({
             >
               <Edit3 className="w-4 h-4" />
             </button>
+
+            {/* Color picker button */}
+            <div className="relative" ref={colorPickerRef}>
+              <button
+                onClick={() => setShowColorPicker(!showColorPicker)}
+                className="p-1 text-slate-600 dark:text-slate-400 hover:text-blue-500 transition-colors"
+                title="Change color"
+              >
+                <Palette className="w-4 h-4" />
+              </button>
+
+              {/* Color picker dropdown - positioned relative to button */}
+              {showColorPicker && (
+                <div
+                  className="absolute top-8 left-0 p-2 bg-white dark:bg-slate-800 rounded-lg shadow-2xl border border-slate-200 dark:border-slate-700 z-[9999]"
+                  onClick={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                >
+                  <div className="grid grid-cols-5 gap-1.5 w-max">
+                    {FRAME_COLORS.map((color) => (
+                      <button
+                        key={color.name}
+                        onClick={() => handleColorChange(color.value)}
+                        className={cn(
+                          "w-6 h-6 rounded transition-all hover:scale-110",
+                          data.backgroundColor === color.value &&
+                            "ring-2 ring-blue-500 ring-offset-1 dark:ring-offset-slate-800"
+                        )}
+                        style={{ backgroundColor: color.border }}
+                        title={color.name}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
 
             <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1" />
 

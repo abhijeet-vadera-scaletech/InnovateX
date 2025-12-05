@@ -28,8 +28,10 @@ export function ConnectorElement({
   onDuplicate,
   onBringToFront,
   onSendToBack,
-  onBringForward,
-  onSendBackward,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  onBringForward: _onBringForward,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  onSendBackward: _onSendBackward,
   scale,
   readOnly = false,
   allElements = [],

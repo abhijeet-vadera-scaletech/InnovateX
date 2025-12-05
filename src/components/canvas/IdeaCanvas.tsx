@@ -44,6 +44,7 @@ import {
   Bookmark,
   Flag,
   Sparkles,
+  Layout,
   type LucideIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -57,8 +58,12 @@ import { ShapeElement } from "./ShapeElement";
 import { StickyNote } from "./StickyNote";
 import { TextElement } from "./TextElement";
 import { AIAssistantPanel } from "./AIAssistantPanel";
+import { LineElement } from "./LineElement";
+import { CardElement } from "./CardElement";
+import { TemplatePicker } from "./TemplatePicker";
 import {
   CanvasElement,
+  CanvasTemplate,
   Position,
   ShapeType,
   STICKY_COLORS,
@@ -74,6 +79,9 @@ interface IdeaCanvasProps {
   readOnly?: boolean;
   title?: string;
   onTitleChange?: (title: string) => void;
+  hideTopBar?: boolean;
+  showAIAssistant?: boolean;
+  onToggleAIAssistant?: () => void;
 }
 
 // Generate unique ID
@@ -128,6 +136,9 @@ export function IdeaCanvas({
   readOnly = false,
   title = "Untitled Idea",
   onTitleChange,
+  hideTopBar = false,
+  showAIAssistant: externalShowAIAssistant,
+  onToggleAIAssistant,
 }: IdeaCanvasProps) {
   // Theme
   const { theme } = useThemeStore();
@@ -147,14 +158,32 @@ export function IdeaCanvas({
   const [strokeWidth, setStrokeWidth] = useState(4);
   const [history, setHistory] = useState<CanvasElement[][]>([initialElements]);
   const [historyIndex, setHistoryIndex] = useState(0);
-  const [showAIAssistant, setShowAIAssistant] = useState(false);
+  const [internalShowAIAssistant, setInternalShowAIAssistant] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
+
+  // Use external AI assistant state if provided, otherwise use internal
+  const showAIAssistant = externalShowAIAssistant ?? internalShowAIAssistant;
+  const handleCloseAIAssistant = () => {
+    if (onToggleAIAssistant && externalShowAIAssistant) {
+      onToggleAIAssistant();
+    } else {
+      setInternalShowAIAssistant(false);
+    }
+  };
+  const handleToggleAIAssistant = () => {
+    if (onToggleAIAssistant) {
+      onToggleAIAssistant();
+    } else {
+      setInternalShowAIAssistant((prev) => !prev);
+    }
+  };
   const [editedTitle, setEditedTitle] = useState(title);
   const [showIconPicker, setShowIconPicker] = useState(false);
   const [iconPickerPosition, setIconPickerPosition] = useState<Position>({
     x: 0,
     y: 0,
   });
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
 
   const canvasRef = useRef<HTMLDivElement>(null);
   const panStart = useRef<Position>({ x: 0, y: 0 });
@@ -166,6 +195,34 @@ export function IdeaCanvas({
       setElements(initialElements);
       setHistory([initialElements]);
       setHistoryIndex(0);
+
+      // Auto-center the canvas content
+      if (canvasRef.current) {
+        const canvasRect = canvasRef.current.getBoundingClientRect();
+
+        // Calculate bounding box of all elements
+        let minX = Infinity,
+          minY = Infinity,
+          maxX = -Infinity,
+          maxY = -Infinity;
+        initialElements.forEach((el) => {
+          minX = Math.min(minX, el.position.x);
+          minY = Math.min(minY, el.position.y);
+          maxX = Math.max(maxX, el.position.x + el.size.width);
+          maxY = Math.max(maxY, el.position.y + el.size.height);
+        });
+
+        const contentWidth = maxX - minX;
+        const contentHeight = maxY - minY;
+        const contentCenterX = minX + contentWidth / 2;
+        const contentCenterY = minY + contentHeight / 2;
+
+        // Center the content in the canvas
+        const panX = canvasRect.width / 2 - contentCenterX;
+        const panY = canvasRect.height / 2 - contentCenterY;
+
+        setPan({ x: panX, y: panY });
+      }
     }
   }, [initialElements]);
 
@@ -253,31 +310,36 @@ export function IdeaCanvas({
         setSelectedIds([]);
         setActiveTool("select");
         setShowIconPicker(false);
-        setShowAIAssistant(false);
+        handleCloseAIAssistant();
       }
 
-      // Group/Ungroup (Ctrl+G / Ctrl+Shift+G)
+      // Select All (Ctrl+A)
+      if ((e.metaKey || e.ctrlKey) && e.key === "a") {
+        e.preventDefault();
+        setSelectedIds(elements.map((el) => el.id));
+      }
+
+      // Group/Ungroup Toggle (Ctrl+G)
       if ((e.metaKey || e.ctrlKey) && e.key === "g") {
         e.preventDefault();
-        if (e.shiftKey) {
-          // Ungroup
-          const selectedElements = elements.filter((el) =>
-            selectedIds.includes(el.id)
+        const selectedElements = elements.filter((el) =>
+          selectedIds.includes(el.id)
+        );
+
+        // Check if any selected elements are already grouped
+        const groupIds = [
+          ...new Set(selectedElements.map((el) => el.groupId).filter(Boolean)),
+        ];
+
+        if (groupIds.length > 0) {
+          // Ungroup - remove groupId from all elements in these groups
+          const newElements = elements.map((el) =>
+            groupIds.includes(el.groupId) ? { ...el, groupId: undefined } : el
           );
-          const groupIds = [
-            ...new Set(
-              selectedElements.map((el) => el.groupId).filter(Boolean)
-            ),
-          ];
-          if (groupIds.length > 0) {
-            const newElements = elements.map((el) =>
-              groupIds.includes(el.groupId) ? { ...el, groupId: undefined } : el
-            );
-            setElements(newElements);
-            pushHistory(newElements);
-          }
+          setElements(newElements);
+          pushHistory(newElements);
         } else if (selectedIds.length >= 2) {
-          // Group
+          // Group - assign same groupId to all selected elements
           const groupId = `group_${Date.now()}`;
           const newElements = elements.map((el) =>
             selectedIds.includes(el.id) ? { ...el, groupId } : el
@@ -297,7 +359,7 @@ export function IdeaCanvas({
     if (readOnly) return;
 
     // Close popups when clicking on canvas
-    setShowAIAssistant(false);
+    handleCloseAIAssistant();
     if (activeTool !== "icon") {
       setShowIconPicker(false);
     }
@@ -480,6 +542,58 @@ export function IdeaCanvas({
       setIconPickerPosition({ x, y });
       setShowIconPicker(true);
     }
+
+    // Line tool
+    if (activeTool === "line") {
+      const newElement: CanvasElement = {
+        id: generateId(),
+        type: "line",
+        position: { x, y },
+        size: { width: 300, height: 4 },
+        rotation: 0,
+        zIndex: elements.length + 1,
+        locked: false,
+        visible: true,
+        data: {
+          orientation: "horizontal" as const,
+          color: isDark ? "#94A3B8" : "#64748B",
+          strokeWidth: 2,
+          style: "solid" as const,
+        },
+      };
+      const newElements = [...elements, newElement];
+      setElements(newElements);
+      pushHistory(newElements);
+      setSelectedIds([newElement.id]);
+      setActiveTool("select");
+    }
+
+    // Card tool
+    if (activeTool === "card") {
+      const newElement: CanvasElement = {
+        id: generateId(),
+        type: "card",
+        position: { x, y },
+        size: { width: 240, height: 120 },
+        rotation: 0,
+        zIndex: elements.length + 1,
+        locked: false,
+        visible: true,
+        data: {
+          title: "New Card",
+          description: "Double-click to edit...",
+          color: "#3B82F6",
+          tags: [],
+          priority: undefined,
+          status: undefined,
+        },
+      };
+      const newElements = [...elements, newElement];
+      setElements(newElements);
+      pushHistory(newElements);
+      setSelectedIds([newElement.id]);
+      setActiveTool("select");
+    }
   };
 
   // Create icon element with selected icon
@@ -541,98 +655,123 @@ export function IdeaCanvas({
   const updateElement = useCallback(
     (id: string, updates: Partial<CanvasElement>) => {
       setElements((currentElements) => {
-        // First, update the target element
-        let newElements = currentElements.map((el) =>
-          el.id === id ? { ...el, ...updates } : el
-        );
+        const targetElement = currentElements.find((el) => el.id === id);
+        if (!targetElement) return currentElements;
 
-        // If position changed, update all connectors connected to this element
-        if (updates.position) {
-          const movedElement = newElements.find((el) => el.id === id);
-          if (movedElement) {
-            newElements = newElements.map((el) => {
-              if (el.type === "connector") {
-                const connectorData = el.data as any;
-                const isStartConnected = connectorData.startElementId === id;
-                const isEndConnected = connectorData.endElementId === id;
+        // Calculate position delta for group movement
+        const deltaX = updates.position
+          ? updates.position.x - targetElement.position.x
+          : 0;
+        const deltaY = updates.position
+          ? updates.position.y - targetElement.position.y
+          : 0;
 
-                if (isStartConnected || isEndConnected) {
-                  // Find the connected elements
-                  const startEl = isStartConnected
-                    ? movedElement
-                    : newElements.find(
-                        (e) => e.id === connectorData.startElementId
-                      );
-                  const endEl = isEndConnected
-                    ? movedElement
-                    : newElements.find(
-                        (e) => e.id === connectorData.endElementId
-                      );
+        // Get all elements in the same group (if any)
+        const groupId = targetElement.groupId;
 
-                  if (startEl && endEl) {
-                    // Recalculate connection points
-                    const startCenterX =
-                      startEl.position.x + startEl.size.width / 2;
-                    const startCenterY =
-                      startEl.position.y + startEl.size.height / 2;
-                    const endCenterX = endEl.position.x + endEl.size.width / 2;
-                    const endCenterY = endEl.position.y + endEl.size.height / 2;
-
-                    let startPoint = { x: startCenterX, y: startCenterY };
-                    let endPoint = { x: endCenterX, y: endCenterY };
-
-                    // Determine edge connection points
-                    if (endCenterX > startCenterX + startEl.size.width / 2) {
-                      startPoint = {
-                        x: startEl.position.x + startEl.size.width,
-                        y: startCenterY,
-                      };
-                      endPoint = { x: endEl.position.x, y: endCenterY };
-                    } else if (
-                      endCenterX <
-                      startCenterX - startEl.size.width / 2
-                    ) {
-                      startPoint = { x: startEl.position.x, y: startCenterY };
-                      endPoint = {
-                        x: endEl.position.x + endEl.size.width,
-                        y: endCenterY,
-                      };
-                    } else if (endCenterY > startCenterY) {
-                      startPoint = {
-                        x: startCenterX,
-                        y: startEl.position.y + startEl.size.height,
-                      };
-                      endPoint = { x: endCenterX, y: endEl.position.y };
-                    } else {
-                      startPoint = { x: startCenterX, y: startEl.position.y };
-                      endPoint = {
-                        x: endCenterX,
-                        y: endEl.position.y + endEl.size.height,
-                      };
-                    }
-
-                    return {
-                      ...el,
-                      position: {
-                        x: Math.min(startPoint.x, endPoint.x),
-                        y: Math.min(startPoint.y, endPoint.y),
-                      },
-                      size: {
-                        width: Math.abs(endPoint.x - startPoint.x) || 10,
-                        height: Math.abs(endPoint.y - startPoint.y) || 10,
-                      },
-                      data: {
-                        ...connectorData,
-                        startPoint,
-                        endPoint,
-                      },
-                    };
-                  }
-                }
-              }
-              return el;
-            });
+        // Update target element and all group members
+        let newElements = currentElements.map((el) => {
+          if (el.id === id) {
+            // Update the dragged element with all updates
+            return { ...el, ...updates };
+          } else if (groupId && el.groupId === groupId && updates.position) {
+            // Move other group members by the same delta
+            return {
+              ...el,
+              position: {
+                x: el.position.x + deltaX,
+                y: el.position.y + deltaY,
+              },
+            };
           }
+          return el;
+        });
+
+        // If position changed, update all connectors connected to any moved elements
+        if (updates.position) {
+          // Get IDs of all moved elements (including group members)
+          const movedElementIds = groupId
+            ? newElements
+                .filter((el) => el.groupId === groupId)
+                .map((el) => el.id)
+            : [id];
+
+          newElements = newElements.map((el) => {
+            if (el.type !== "connector") return el;
+
+            const connectorData = el.data as any;
+            const isStartConnected = movedElementIds.includes(
+              connectorData.startElementId
+            );
+            const isEndConnected = movedElementIds.includes(
+              connectorData.endElementId
+            );
+
+            if (!isStartConnected && !isEndConnected) return el;
+
+            // Find the connected elements
+            const startEl = newElements.find(
+              (e) => e.id === connectorData.startElementId
+            );
+            const endEl = newElements.find(
+              (e) => e.id === connectorData.endElementId
+            );
+
+            if (!startEl || !endEl) return el;
+
+            // Recalculate connection points
+            const startCenterX = startEl.position.x + startEl.size.width / 2;
+            const startCenterY = startEl.position.y + startEl.size.height / 2;
+            const endCenterX = endEl.position.x + endEl.size.width / 2;
+            const endCenterY = endEl.position.y + endEl.size.height / 2;
+
+            let startPoint = { x: startCenterX, y: startCenterY };
+            let endPoint = { x: endCenterX, y: endCenterY };
+
+            // Determine edge connection points
+            if (endCenterX > startCenterX + startEl.size.width / 2) {
+              startPoint = {
+                x: startEl.position.x + startEl.size.width,
+                y: startCenterY,
+              };
+              endPoint = { x: endEl.position.x, y: endCenterY };
+            } else if (endCenterX < startCenterX - startEl.size.width / 2) {
+              startPoint = { x: startEl.position.x, y: startCenterY };
+              endPoint = {
+                x: endEl.position.x + endEl.size.width,
+                y: endCenterY,
+              };
+            } else if (endCenterY > startCenterY) {
+              startPoint = {
+                x: startCenterX,
+                y: startEl.position.y + startEl.size.height,
+              };
+              endPoint = { x: endCenterX, y: endEl.position.y };
+            } else {
+              startPoint = { x: startCenterX, y: startEl.position.y };
+              endPoint = {
+                x: endCenterX,
+                y: endEl.position.y + endEl.size.height,
+              };
+            }
+
+            return {
+              ...el,
+              position: {
+                x: Math.min(startPoint.x, endPoint.x),
+                y: Math.min(startPoint.y, endPoint.y),
+              },
+              size: {
+                width: Math.abs(endPoint.x - startPoint.x) || 10,
+                height: Math.abs(endPoint.y - startPoint.y) || 10,
+              },
+              data: {
+                ...connectorData,
+                startPoint,
+                endPoint,
+              },
+            };
+          });
         }
 
         return newElements;
@@ -752,6 +891,23 @@ export function IdeaCanvas({
       pushHistory(newElements);
     },
     [elements, pushHistory]
+  );
+
+  // Handle template selection
+  const handleSelectTemplate = useCallback(
+    (template: CanvasTemplate) => {
+      const newElements: CanvasElement[] = template.elements.map(
+        (el, index) => ({
+          ...el,
+          id: generateId(),
+          zIndex: index + 1,
+        })
+      );
+      setElements(newElements);
+      pushHistory(newElements);
+      setSelectedIds([]);
+    },
+    [pushHistory]
   );
 
   // Handle element selection with Shift key for multi-select
@@ -1091,6 +1247,60 @@ export function IdeaCanvas({
                 strokeWidth: action.payload.strokeWidth || 2,
               },
             });
+          } else if (action.type === "add_line") {
+            const totalIndex = updatedElements.length + newElements.length;
+            const posX = action.payload.x ?? 100 + (totalIndex % 3) * 260;
+            const posY =
+              action.payload.y ?? 100 + Math.floor(totalIndex / 3) * 240;
+            const orientation = action.payload.orientation || "horizontal";
+
+            newElements.push({
+              id: generateId(),
+              type: "line",
+              position: { x: posX, y: posY },
+              size: {
+                width:
+                  action.payload.width ||
+                  (orientation === "horizontal" ? 300 : 4),
+                height:
+                  action.payload.height ||
+                  (orientation === "vertical" ? 300 : 4),
+              },
+              rotation: 0,
+              zIndex: updatedElements.length + newElements.length + 1,
+              locked: false,
+              visible: true,
+              data: {
+                orientation,
+                color: action.payload.color || "#64748B",
+                strokeWidth: action.payload.strokeWidth || 2,
+                style: action.payload.style || "solid",
+              },
+            });
+          } else if (action.type === "add_card") {
+            const totalIndex = updatedElements.length + newElements.length;
+            const posX = action.payload.x ?? 100 + (totalIndex % 3) * 260;
+            const posY =
+              action.payload.y ?? 100 + Math.floor(totalIndex / 3) * 240;
+
+            newElements.push({
+              id: generateId(),
+              type: "card",
+              position: { x: posX, y: posY },
+              size: { width: 240, height: 120 },
+              rotation: 0,
+              zIndex: updatedElements.length + newElements.length + 1,
+              locked: false,
+              visible: true,
+              data: {
+                title: action.payload.title || "New Card",
+                description: action.payload.description || "",
+                color: action.payload.color || "#3B82F6",
+                tags: action.payload.tags || [],
+                priority: action.payload.priority,
+                status: action.payload.status,
+              },
+            });
           }
         });
 
@@ -1161,6 +1371,10 @@ export function IdeaCanvas({
             allElements={elements}
           />
         );
+      case "line":
+        return <LineElement key={element.id} {...commonProps} />;
+      case "card":
+        return <CardElement key={element.id} {...commonProps} />;
       default:
         return null;
     }
@@ -1196,9 +1410,18 @@ export function IdeaCanvas({
         />
       )}
 
-      {/* Top bar - only show in edit mode */}
-      {!readOnly && (
+      {/* Top bar - only show in edit mode and when hideTopBar is false */}
+      {!readOnly && !hideTopBar && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3">
+          {/* Templates button */}
+          <button
+            onClick={() => setShowTemplatePicker(true)}
+            className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 hover:border-purple-500 transition-all"
+          >
+            <Layout className="w-4 h-4 text-purple-500" />
+            <span className="text-sm font-medium">Templates</span>
+          </button>
+
           {/* Title */}
           <div className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700">
             {isEditingTitle ? (
@@ -1231,12 +1454,12 @@ export function IdeaCanvas({
         </div>
       )}
 
-      {/* Right side actions */}
-      {!readOnly && (
+      {/* Right side actions - only show when hideTopBar is false */}
+      {!readOnly && !hideTopBar && (
         <div className="absolute top-4 right-4 z-40 flex items-center gap-2">
           {/* AI Assistant toggle */}
           <button
-            onClick={() => setShowAIAssistant(!showAIAssistant)}
+            onClick={handleToggleAIAssistant}
             className={cn(
               "flex items-center gap-2 px-3 py-2 rounded-xl shadow-lg border transition-all",
               showAIAssistant
@@ -1275,7 +1498,11 @@ export function IdeaCanvas({
           isPanning && "cursor-grabbing",
           activeTool === "sticky-note" && "cursor-crosshair",
           activeTool === "text" && "cursor-text",
-          activeTool === "shape" && "cursor-crosshair"
+          activeTool === "shape" && "cursor-crosshair",
+          activeTool === "line" && "cursor-crosshair",
+          activeTool === "card" && "cursor-crosshair",
+          activeTool === "frame" && "cursor-crosshair",
+          activeTool === "connector" && "cursor-crosshair"
         )}
         onClick={handleCanvasClick}
         onMouseDown={handleMouseDown}
@@ -1370,7 +1597,7 @@ export function IdeaCanvas({
       {!readOnly && (
         <AIAssistantPanel
           isOpen={showAIAssistant}
-          onClose={() => setShowAIAssistant(false)}
+          onClose={handleCloseAIAssistant}
           ideaId={ideaId}
           ideaTitle={title}
           canvasElements={elements}
@@ -1425,6 +1652,13 @@ export function IdeaCanvas({
           </div>
         </div>
       )}
+
+      {/* Template Picker */}
+      <TemplatePicker
+        isOpen={showTemplatePicker}
+        onClose={() => setShowTemplatePicker(false)}
+        onSelectTemplate={handleSelectTemplate}
+      />
 
       {/* Hidden file input */}
       <input

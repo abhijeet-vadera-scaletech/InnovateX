@@ -20,7 +20,8 @@ import {
   Star,
   ArrowRight,
   Cloud,
-  MoreHorizontal,
+  SeparatorHorizontal,
+  CreditCard,
 } from "lucide-react";
 import { ToolType, ShapeType } from "./types";
 import { useState, useEffect, useRef } from "react";
@@ -44,11 +45,13 @@ const mainTools: {
   { id: "text", icon: Type, label: "Text", shortcut: "T" },
   { id: "shape", icon: Shapes, label: "Shapes", shortcut: "S" },
   { id: "connector", icon: Minus, label: "Connector", shortcut: "L" },
-  { id: "draw", icon: Pencil, label: "Draw", shortcut: "P" },
-  { id: "eraser", icon: Eraser, label: "Eraser", shortcut: "E" },
-  { id: "image", icon: Image, label: "Image", shortcut: "I" },
+  { id: "line", icon: SeparatorHorizontal, label: "Line", shortcut: "-" },
+  { id: "card", icon: CreditCard, label: "Card", shortcut: "K" },
   { id: "frame", icon: Frame, label: "Frame", shortcut: "F" },
   { id: "icon", icon: Smile, label: "Icons", shortcut: "O" },
+  { id: "image", icon: Image, label: "Image", shortcut: "I" },
+  { id: "draw", icon: Pencil, label: "Draw", shortcut: "P" },
+  { id: "eraser", icon: Eraser, label: "Eraser", shortcut: "E" },
   { id: "comment", icon: MessageSquare, label: "Comment", shortcut: "C" },
 ];
 
@@ -74,11 +77,7 @@ export function CanvasToolbar({
   onShapeChange,
 }: CanvasToolbarProps) {
   const [showShapeMenu, setShowShapeMenu] = useState(false);
-  const [showMoreTools, setShowMoreTools] = useState(false);
   const toolbarRef = useRef<HTMLDivElement>(null);
-
-  const visibleTools = mainTools.slice(0, 8);
-  const moreTools = mainTools.slice(8);
 
   // Close menus when clicking outside
   useEffect(() => {
@@ -88,7 +87,6 @@ export function CanvasToolbar({
         !toolbarRef.current.contains(e.target as Node)
       ) {
         setShowShapeMenu(false);
-        setShowMoreTools(false);
       }
     };
 
@@ -101,7 +99,6 @@ export function CanvasToolbar({
     if (activeTool !== "shape") {
       setShowShapeMenu(false);
     }
-    setShowMoreTools(false);
   }, [activeTool]);
 
   return (
@@ -109,8 +106,11 @@ export function CanvasToolbar({
       ref={toolbarRef}
       className="fixed left-4 top-1/2 -translate-y-1/2 z-50"
     >
-      <div className="flex flex-col gap-1 p-2 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700">
-        {visibleTools.map((tool) => (
+      <div
+        className="flex flex-col gap-1 p-2 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 max-h-[90vh] overflow-y-auto scrollbar-hide"
+        style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+      >
+        {mainTools.map((tool) => (
           <div key={tool.id} className="relative">
             <button
               onClick={() => {
@@ -132,7 +132,7 @@ export function CanvasToolbar({
               <tool.icon className="w-5 h-5" />
 
               {/* Tooltip */}
-              <div className="absolute left-full ml-3 px-2 py-1 bg-slate-900 dark:bg-slate-700 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+              <div className="absolute left-full ml-3 px-2 py-1 bg-slate-900 dark:bg-slate-700 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
                 {tool.label}
                 <span className="ml-2 text-slate-400">{tool.shortcut}</span>
               </div>
@@ -140,7 +140,7 @@ export function CanvasToolbar({
 
             {/* Shape submenu */}
             {tool.id === "shape" && showShapeMenu && activeTool === "shape" && (
-              <div className="absolute left-full ml-3 top-0 p-3 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 min-w-[180px]">
+              <div className="absolute left-full ml-3 top-0 p-3 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 min-w-[180px] z-50">
                 <div className="grid grid-cols-4 gap-2">
                   {shapeOptions.map((shape) => (
                     <button
@@ -165,53 +165,6 @@ export function CanvasToolbar({
             )}
           </div>
         ))}
-
-        {/* Divider */}
-        <div className="h-px bg-slate-200 dark:bg-slate-700 my-1" />
-
-        {/* More tools */}
-        <div className="relative">
-          <button
-            onClick={() => setShowMoreTools(!showMoreTools)}
-            className={cn(
-              "flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-200",
-              showMoreTools
-                ? "bg-slate-100 dark:bg-slate-700"
-                : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
-            )}
-            title="More tools"
-          >
-            <MoreHorizontal className="w-5 h-5" />
-          </button>
-
-          {showMoreTools && (
-            <div className="absolute left-full ml-3 top-0 p-2 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700">
-              <div className="flex flex-col gap-1">
-                {moreTools.map((tool) => (
-                  <button
-                    key={tool.id}
-                    onClick={() => {
-                      onToolChange(tool.id);
-                      setShowMoreTools(false);
-                    }}
-                    className={cn(
-                      "flex items-center gap-3 px-3 py-2 rounded-lg transition-all whitespace-nowrap",
-                      activeTool === tool.id
-                        ? "bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400"
-                        : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
-                    )}
-                  >
-                    <tool.icon className="w-4 h-4" />
-                    <span className="text-sm">{tool.label}</span>
-                    <span className="text-xs text-slate-400 ml-auto">
-                      {tool.shortcut}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );

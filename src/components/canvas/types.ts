@@ -7,7 +7,9 @@ export type ElementType =
   | "connector"
   | "drawing"
   | "frame"
-  | "icon";
+  | "icon"
+  | "line"
+  | "card";
 
 export type ShapeType =
   | "rectangle"
@@ -99,6 +101,22 @@ export interface IconData {
   size: number;
 }
 
+export interface LineData {
+  orientation: "horizontal" | "vertical";
+  color: string;
+  strokeWidth: number;
+  style: "solid" | "dashed" | "dotted";
+}
+
+export interface CardData {
+  title: string;
+  description: string;
+  color: string;
+  tags: { label: string; color: string }[];
+  priority?: "low" | "medium" | "high";
+  status?: string;
+}
+
 export type ElementData =
   | StickyNoteData
   | TextData
@@ -107,7 +125,9 @@ export type ElementData =
   | ConnectorData
   | DrawingData
   | FrameData
-  | IconData;
+  | IconData
+  | LineData
+  | CardData;
 
 export interface CanvasState {
   elements: CanvasElement[];
@@ -130,7 +150,10 @@ export type ToolType =
   | "image"
   | "frame"
   | "icon"
-  | "comment";
+  | "comment"
+  | "line"
+  | "card"
+  | "template";
 
 export interface ToolConfig {
   id: ToolType;
@@ -164,3 +187,22 @@ export const SHAPE_COLORS = [
   "#000000", // Black
   "#FFFFFF", // White
 ];
+
+// Template types
+export type TemplateType =
+  | "idea-canvas"
+  | "timeline"
+  | "kanban"
+  | "priority-matrix"
+  | "brainstorm"
+  | "flowchart"
+  | "swot"
+  | "mindmap";
+
+export interface CanvasTemplate {
+  id: TemplateType;
+  name: string;
+  description: string;
+  thumbnail?: string;
+  elements: Omit<CanvasElement, "id">[];
+}

@@ -2,20 +2,23 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { IdeaCanvas, CanvasElement } from "@/components/canvas";
-import { ideasApi, organisationsApi } from "@/lib/api";
+import { ideasApi } from "@/lib/api";
 import { useThemeStore } from "@/stores/themeStore";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
-import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
 import {
   ArrowLeft,
-  Settings,
   X,
-  Tag,
-  Building2,
-  Layers,
   Loader2,
+  Layout,
+  Columns3,
+  Sparkles,
+  Save,
+  Send,
 } from "lucide-react";
+import { TemplatePicker } from "@/components/canvas/TemplatePicker";
+import { DEFAULT_IDEA_TEMPLATE } from "@/components/canvas/templates";
+import { CanvasTemplate, TemplateType } from "@/components/canvas/types";
 
 interface IdeaMetadata {
   title: string;
@@ -25,6 +28,18 @@ interface IdeaMetadata {
   tags: string[];
 }
 
+// Template icons for display
+const TEMPLATE_ICONS: Record<TemplateType, React.ReactNode> = {
+  "idea-canvas": <Columns3 className="w-4 h-4" />,
+  kanban: <Layout className="w-4 h-4" />,
+  timeline: <Layout className="w-4 h-4" />,
+  "priority-matrix": <Layout className="w-4 h-4" />,
+  brainstorm: <Layout className="w-4 h-4" />,
+  flowchart: <Layout className="w-4 h-4" />,
+  swot: <Layout className="w-4 h-4" />,
+  mindmap: <Layout className="w-4 h-4" />,
+};
+
 export default function IdeaCanvasPage() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -32,27 +47,41 @@ export default function IdeaCanvasPage() {
 
   useThemeStore(); // Initialize theme
 
-  const [showSettings, setShowSettings] = useState(false);
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  const [showSubmitModal, setShowSubmitModal] = useState(false);
+  const [showAIAssistant, setShowAIAssistant] = useState(false);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [submitSummary, setSubmitSummary] = useState("");
   const [metadata, setMetadata] = useState<IdeaMetadata>({
     title: "Untitled Idea",
     summary: "",
     tags: [],
   });
-  const [tagInput, setTagInput] = useState("");
+  const [selectedTemplate, setSelectedTemplate] = useState<CanvasTemplate>(
+    DEFAULT_IDEA_TEMPLATE
+  );
   const [canvasElements, setCanvasElements] = useState<CanvasElement[]>([]);
   const [drawingPaths, setDrawingPaths] = useState<string[]>([]);
-  console.log("🚀 ~ IdeaCanvasPage ~ drawingPaths:", drawingPaths);
+  const [pendingSubmitData, setPendingSubmitData] = useState<{
+    elements: CanvasElement[];
+    paths: string[];
+  } | null>(null);
 
-  // Fetch domains and departments
-  const { data: domains } = useQuery({
-    queryKey: ["domains"],
-    queryFn: () => organisationsApi.getDomains().then((res) => res.data),
-  });
-
-  const { data: departments } = useQuery({
-    queryKey: ["departments"],
-    queryFn: () => organisationsApi.getDepartments().then((res) => res.data),
-  });
+  // Load default template for new ideas
+  useEffect(() => {
+    if (!isEditing && canvasElements.length === 0) {
+      // Apply default template
+      const templateElements = DEFAULT_IDEA_TEMPLATE.elements.map(
+        (el, index) => ({
+          ...el,
+          id: `tpl_${Date.now()}_${index}_${Math.random()
+            .toString(36)
+            .substr(2, 9)}`,
+        })
+      ) as CanvasElement[];
+      setCanvasElements(templateElements);
+    }
+  }, [isEditing]);
 
   // Fetch existing idea if editing
   const { data: existingIdea, isLoading: isLoadingIdea } = useQuery({
@@ -168,11 +197,20 @@ export default function IdeaCanvasPage() {
   };
 
   const handleSubmit = (elements: CanvasElement[], paths: string[]) => {
-    if (!metadata.summary) {
-      toast.error("Please add a summary in the settings panel");
-      setShowSettings(true);
+    // Open submit modal instead of directly submitting
+    setPendingSubmitData({ elements, paths });
+    setShowSubmitModal(true);
+  };
+
+  const handleConfirmSubmit = () => {
+    if (!submitSummary.trim()) {
+      toast.error("Please add a summary for your idea");
       return;
     }
+
+    if (!pendingSubmitData) return;
+
+    const { elements, paths } = pendingSubmitData;
 
     const description = elements
       .filter((el) => el.type === "sticky-note" || el.type === "text")
@@ -188,40 +226,29 @@ export default function IdeaCanvasPage() {
       .filter(Boolean)
       .join("\n\n");
 
-    if (!description && elements.length === 0) {
-      toast.error("Please add some content to your idea canvas");
-      return;
-    }
-
     const payload = {
       title: metadata.title,
-      summary: metadata.summary,
-      description: description || metadata.summary,
+      summary: submitSummary,
+      description: description || submitSummary,
       canvasData: elements,
       canvasState: { zoom: 1, pan: { x: 0, y: 0 }, paths },
-      tags: metadata.tags,
-      ...(metadata.domainId && { domainId: metadata.domainId }),
-      ...(metadata.departmentId && { departmentId: metadata.departmentId }),
+      tags: [],
     };
 
     submitMutation.mutate(payload);
+    setShowSubmitModal(false);
+    setPendingSubmitData(null);
   };
 
-  const addTag = () => {
-    if (tagInput.trim() && !metadata.tags.includes(tagInput.trim())) {
-      setMetadata((prev) => ({
-        ...prev,
-        tags: [...prev.tags, tagInput.trim()],
-      }));
-      setTagInput("");
-    }
-  };
-
-  const removeTag = (tag: string) => {
-    setMetadata((prev) => ({
-      ...prev,
-      tags: prev.tags.filter((t) => t !== tag),
-    }));
+  const handleSelectTemplate = (template: CanvasTemplate) => {
+    setSelectedTemplate(template);
+    const templateElements = template.elements.map((el, index) => ({
+      ...el,
+      id: `tpl_${Date.now()}_${index}_${Math.random()
+        .toString(36)
+        .substr(2, 9)}`,
+    })) as CanvasElement[];
+    setCanvasElements(templateElements);
   };
 
   if (isEditing && isLoadingIdea) {
@@ -236,44 +263,113 @@ export default function IdeaCanvasPage() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-slate-50 dark:bg-slate-900">
+    <div className="h-screen flex flex-col bg-slate-900">
       {/* Top navigation bar */}
-      <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 z-50">
-        <div className="flex items-center gap-4">
+      <div className="flex items-center justify-between px-4 py-2 bg-slate-800 border-b border-slate-700 z-50">
+        {/* Left side - Back button and Title (like Google Docs) */}
+        <div className="flex items-center gap-3">
           <button
             onClick={() => navigate(-1)}
-            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+            className="p-2 hover:bg-slate-700 rounded-lg transition-colors text-slate-400 hover:text-white"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-500 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">IC</span>
+            <div className="w-7 h-7 bg-gradient-to-br from-blue-500 to-purple-500 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-xs">
+                {metadata.title
+                  .split(/\s+/)
+                  .slice(0, 2)
+                  .map((word) => word.charAt(0).toUpperCase())
+                  .join("") || "IC"}
+              </span>
             </div>
-            <span className="font-semibold text-lg">IdeaCanvas</span>
+            {/* Editable Title - like Google Docs */}
+            {isEditingTitle ? (
+              <input
+                type="text"
+                value={metadata.title}
+                onChange={(e) =>
+                  setMetadata((prev) => ({ ...prev, title: e.target.value }))
+                }
+                onBlur={() => setIsEditingTitle(false)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") setIsEditingTitle(false);
+                }}
+                className="bg-slate-700 border border-slate-600 rounded px-2 py-1 outline-none text-white text-base font-medium min-w-[200px] focus:border-blue-500"
+                autoFocus
+              />
+            ) : (
+              <span
+                className="text-white text-base font-semibold cursor-pointer hover:bg-slate-700 px-2 py-1 rounded transition-colors"
+                onClick={() => setIsEditingTitle(true)}
+                title="Click to rename"
+              >
+                {metadata.title}
+              </span>
+            )}
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <ThemeToggle />
+        {/* Right side - Template selector and Actions */}
+        <div className="flex items-center gap-2">
+          {/* Template selector button */}
           <button
-            onClick={() => setShowSettings(!showSettings)}
-            className={cn(
-              "flex items-center gap-2 px-3 py-2 rounded-lg transition-colors",
-              showSettings
-                ? "bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400"
-                : "hover:bg-slate-100 dark:hover:bg-slate-700"
-            )}
+            onClick={() => setShowTemplatePicker(true)}
+            className="flex items-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors border border-slate-600 text-white"
           >
-            <Settings className="w-4 h-4" />
-            <span className="text-sm font-medium">Settings</span>
+            {TEMPLATE_ICONS[selectedTemplate.id]}
+            <span className="text-sm">{selectedTemplate.name}</span>
+          </button>
+
+          <ThemeToggle />
+
+          {/* AI Assistant button */}
+          <button
+            onClick={() => setShowAIAssistant(!showAIAssistant)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors border ${
+              showAIAssistant
+                ? "bg-blue-500 border-blue-500 text-white"
+                : "bg-slate-700 hover:bg-slate-600 border-slate-600 text-white"
+            }`}
+          >
+            <Sparkles className="w-4 h-4" />
+            <span className="text-sm font-medium">AI Assistant</span>
+          </button>
+
+          {/* Save Draft button */}
+          <button
+            onClick={() => handleSave(canvasElements, drawingPaths)}
+            disabled={saveMutation.isPending}
+            className="flex items-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors border border-slate-600 text-white disabled:opacity-50"
+          >
+            {saveMutation.isPending ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Save className="w-4 h-4" />
+            )}
+            <span className="text-sm font-medium">Save Draft</span>
+          </button>
+
+          {/* Submit button */}
+          <button
+            onClick={() => handleSubmit(canvasElements, drawingPaths)}
+            disabled={submitMutation.isPending}
+            className="flex items-center gap-2 px-3 py-1.5 bg-blue-500 hover:bg-blue-600 rounded-lg transition-colors text-white disabled:opacity-50"
+          >
+            {submitMutation.isPending ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Send className="w-4 h-4" />
+            )}
+            <span className="text-sm font-medium">Submit</span>
           </button>
         </div>
       </div>
 
       {/* Main content */}
       <div className="flex-1 relative overflow-hidden">
-        {/* Canvas */}
+        {/* Canvas - hide top bar since we moved controls to navbar */}
         <IdeaCanvas
           ideaId={id}
           initialElements={canvasElements}
@@ -282,145 +378,82 @@ export default function IdeaCanvasPage() {
           onTitleChange={(title) => setMetadata((prev) => ({ ...prev, title }))}
           onSave={handleSave}
           onSubmit={handleSubmit}
+          hideTopBar
+          showAIAssistant={showAIAssistant}
+          onToggleAIAssistant={() => setShowAIAssistant(!showAIAssistant)}
         />
 
-        {/* Settings panel */}
-        {showSettings && (
-          <div className="absolute top-4 right-4 w-80 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 z-50 overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
-              <h3 className="font-semibold">Idea Settings</h3>
-              <button
-                onClick={() => setShowSettings(false)}
-                className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+        {/* Template Picker */}
+        <TemplatePicker
+          isOpen={showTemplatePicker}
+          onClose={() => setShowTemplatePicker(false)}
+          onSelectTemplate={handleSelectTemplate}
+        />
 
-            <div className="p-4 space-y-4 max-h-[60vh] overflow-y-auto">
-              {/* Summary */}
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Summary <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  value={metadata.summary}
-                  onChange={(e) =>
-                    setMetadata((prev) => ({
-                      ...prev,
-                      summary: e.target.value,
-                    }))
-                  }
-                  placeholder="Brief summary of your idea..."
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm resize-none h-20 outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              {/* Domain */}
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  <Building2 className="w-4 h-4 inline mr-1" />
-                  Domain
-                </label>
-                <select
-                  value={metadata.domainId || ""}
-                  onChange={(e) =>
-                    setMetadata((prev) => ({
-                      ...prev,
-                      domainId: e.target.value || undefined,
-                    }))
-                  }
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500"
+        {/* Submit Modal */}
+        {showSubmitModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50">
+            <div className="w-full max-w-md bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+              <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
+                <h3 className="font-semibold text-lg">Submit Idea</h3>
+                <button
+                  onClick={() => {
+                    setShowSubmitModal(false);
+                    setPendingSubmitData(null);
+                    setSubmitSummary("");
+                  }}
+                  className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                 >
-                  <option value="">Select domain</option>
-                  {domains?.map((domain: any) => (
-                    <option key={domain.id} value={domain.id}>
-                      {domain.name}
-                    </option>
-                  ))}
-                </select>
+                  <X className="w-5 h-5" />
+                </button>
               </div>
 
-              {/* Department */}
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  <Layers className="w-4 h-4 inline mr-1" />
-                  Department
-                </label>
-                <select
-                  value={metadata.departmentId || ""}
-                  onChange={(e) =>
-                    setMetadata((prev) => ({
-                      ...prev,
-                      departmentId: e.target.value || undefined,
-                    }))
-                  }
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select department</option>
-                  {departments?.map((dept: any) => (
-                    <option key={dept.id} value={dept.id}>
-                      {dept.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Tags */}
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  <Tag className="w-4 h-4 inline mr-1" />
-                  Tags
-                </label>
-                <div className="flex gap-2 mb-2">
-                  <input
-                    type="text"
-                    value={tagInput}
-                    onChange={(e) => setTagInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        addTag();
-                      }
-                    }}
-                    placeholder="Add a tag..."
-                    className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500"
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Summary <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    value={submitSummary}
+                    onChange={(e) => setSubmitSummary(e.target.value)}
+                    placeholder="Provide a brief summary of your idea for reviewers..."
+                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm resize-none h-32 outline-none focus:ring-2 focus:ring-blue-500"
+                    autoFocus
                   />
-                  <button
-                    onClick={addTag}
-                    className="px-3 py-2 bg-blue-500 text-white rounded-xl text-sm font-medium hover:bg-blue-600 transition-colors"
-                  >
-                    Add
-                  </button>
+                  <p className="text-xs text-slate-500 mt-1">
+                    This summary will be visible to reviewers and helps them
+                    understand your idea quickly.
+                  </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {metadata.tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-lg text-xs"
-                    >
-                      {tag}
-                      <button
-                        onClick={() => removeTag(tag)}
-                        className="hover:text-red-500 transition-colors"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  ))}
-                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 p-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
+                <button
+                  onClick={() => {
+                    setShowSubmitModal(false);
+                    setPendingSubmitData(null);
+                    setSubmitSummary("");
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmSubmit}
+                  disabled={!submitSummary.trim() || submitMutation.isPending}
+                  className="px-4 py-2 bg-blue-500 text-white text-sm font-medium rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {submitMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Submitting...
+                    </>
+                  ) : (
+                    "Submit for Review"
+                  )}
+                </button>
               </div>
             </div>
-
-            {/* Save indicator */}
-            {(saveMutation.isPending || submitMutation.isPending) && (
-              <div className="p-4 border-t border-slate-200 dark:border-slate-700">
-                <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Saving...</span>
-                </div>
-              </div>
-            )}
           </div>
         )}
       </div>
