@@ -263,14 +263,14 @@ export default function IdeaCanvasPage() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-slate-900">
+    <div className="h-screen flex flex-col bg-slate-50 dark:bg-slate-900">
       {/* Top navigation bar */}
-      <div className="flex items-center justify-between px-4 py-2 bg-slate-800 border-b border-slate-700 z-50">
+      <div className="flex items-center justify-between px-4 py-2 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 z-50">
         {/* Left side - Back button and Title (like Google Docs) */}
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate(-1)}
-            className="p-2 hover:bg-slate-700 rounded-lg transition-colors text-slate-400 hover:text-white"
+            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
@@ -296,12 +296,12 @@ export default function IdeaCanvasPage() {
                 onKeyDown={(e) => {
                   if (e.key === "Enter") setIsEditingTitle(false);
                 }}
-                className="bg-slate-700 border border-slate-600 rounded px-2 py-1 outline-none text-white text-base font-medium min-w-[200px] focus:border-blue-500"
+                className="bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded px-2 py-1 outline-none text-slate-900 dark:text-white text-base font-medium min-w-[200px] focus:border-blue-500"
                 autoFocus
               />
             ) : (
               <span
-                className="text-white text-base font-semibold cursor-pointer hover:bg-slate-700 px-2 py-1 rounded transition-colors"
+                className="text-slate-900 dark:text-white text-base font-semibold cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 px-2 py-1 rounded transition-colors"
                 onClick={() => setIsEditingTitle(true)}
                 title="Click to rename"
               >
@@ -316,7 +316,7 @@ export default function IdeaCanvasPage() {
           {/* Template selector button */}
           <button
             onClick={() => setShowTemplatePicker(true)}
-            className="flex items-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors border border-slate-600 text-white"
+            className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition-colors border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-white"
           >
             {TEMPLATE_ICONS[selectedTemplate.id]}
             <span className="text-sm">{selectedTemplate.name}</span>
@@ -330,7 +330,7 @@ export default function IdeaCanvasPage() {
             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors border ${
               showAIAssistant
                 ? "bg-blue-500 border-blue-500 text-white"
-                : "bg-slate-700 hover:bg-slate-600 border-slate-600 text-white"
+                : "bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-white"
             }`}
           >
             <Sparkles className="w-4 h-4" />
@@ -341,7 +341,7 @@ export default function IdeaCanvasPage() {
           <button
             onClick={() => handleSave(canvasElements, drawingPaths)}
             disabled={saveMutation.isPending}
-            className="flex items-center gap-2 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors border border-slate-600 text-white disabled:opacity-50"
+            className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition-colors border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-white disabled:opacity-50"
           >
             {saveMutation.isPending ? (
               <Loader2 className="w-4 h-4 animate-spin" />
