@@ -193,4 +193,75 @@ export const aiApi = {
   getClusters: (minClusterSize?: number) =>
     api.get("/ai/clusters", { params: { minClusterSize } }),
   getHiddenGems: () => api.get("/ai/hidden-gems"),
+  // AI Assistant for canvas (legacy)
+  assistantChat: (data: {
+    message: string;
+    ideaTitle: string;
+    canvasElements?: any[];
+    chatHistory?: { role: "user" | "assistant"; content: string }[];
+  }) =>
+    api.post<{
+      message: string;
+      actions: {
+        type:
+          | "add_sticky_note"
+          | "add_text"
+          | "add_shape"
+          | "modify_element"
+          | "delete_element"
+          | "suggest";
+        payload: any;
+        targetElementId?: string;
+      }[];
+      suggestions?: string[];
+    }>("/ai/assistant/chat", data),
+
+  // Enhanced AI Assistant V2 with persistence and element targeting
+  assistantChatV2: (data: {
+    ideaId: string;
+    message: string;
+    ideaTitle: string;
+    canvasElements?: any[];
+    attachments?: {
+      type: "image" | "element";
+      data: string;
+      elementContext?: any;
+    }[];
+    targetElements?: { id: string; type: string; content: string }[];
+  }) =>
+    api.post<{
+      message: string;
+      messageId: string;
+      actions: {
+        type:
+          | "add_sticky_note"
+          | "add_text"
+          | "add_shape"
+          | "modify_element"
+          | "delete_element"
+          | "suggest";
+        payload: any;
+        targetElementId?: string;
+      }[];
+      suggestions?: string[];
+    }>("/ai/assistant/chat/v2", data),
+
+  // Get chat history for an idea
+  getChatHistory: (ideaId: string) =>
+    api.get<{
+      chatId: string | null;
+      messages: {
+        id: string;
+        role: "user" | "assistant";
+        content: string;
+        actions?: any;
+        attachments?: any;
+        elementContext?: any;
+        createdAt: string;
+      }[];
+    }>(`/ai/assistant/chat/${ideaId}`),
+
+  // Delete chat history for an idea
+  deleteChatHistory: (ideaId: string) =>
+    api.delete<{ success: boolean }>(`/ai/assistant/chat/${ideaId}`),
 };

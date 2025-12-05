@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
-// Card components not used in this redesign but kept for potential future use
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { ConfirmationModal } from "@/components/ui/confirmation-modal";
 import { ideasApi } from "@/lib/api";
 import { getStatusColor, getStatusLabel, formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -57,6 +57,11 @@ const getStatusIcon = (status: string) => {
 export default function MyIdeas() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("");
+  const [deleteModal, setDeleteModal] = useState<{
+    isOpen: boolean;
+    ideaId: string;
+    ideaTitle: string;
+  }>({ isOpen: false, ideaId: "", ideaTitle: "" });
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -73,17 +78,26 @@ export default function MyIdeas() {
     onSuccess: () => {
       toast.success("Idea deleted successfully");
       queryClient.invalidateQueries({ queryKey: ["my-ideas"] });
+      setDeleteModal({ isOpen: false, ideaId: "", ideaTitle: "" });
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.message || "Failed to delete idea");
     },
   });
 
-  const handleDelete = (e: React.MouseEvent, id: string, title: string) => {
+  const handleDeleteClick = (
+    e: React.MouseEvent,
+    id: string,
+    title: string
+  ) => {
     e.preventDefault();
     e.stopPropagation();
-    if (confirm(`Are you sure you want to delete "${title}"?`)) {
-      deleteMutation.mutate(id);
+    setDeleteModal({ isOpen: true, ideaId: id, ideaTitle: title });
+  };
+
+  const handleConfirmDelete = () => {
+    if (deleteModal.ideaId) {
+      deleteMutation.mutate(deleteModal.ideaId);
     }
   };
 
@@ -168,7 +182,7 @@ export default function MyIdeas() {
           {ideas.data.map((idea: any, index: number) => (
             <div
               key={idea.id}
-              onClick={() => navigate(`/employee/ideas/${idea.id}`)}
+              onClick={() => navigate(`/employee/ideas/${idea.id}/preview`)}
               className={cn(
                 "group relative bg-gradient-to-br rounded-xl border-2 p-5 cursor-pointer transition-all duration-300",
                 "hover:shadow-xl hover:-translate-y-1 hover:rotate-0",
@@ -216,7 +230,9 @@ export default function MyIdeas() {
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 hover:bg-red-100 text-red-500"
-                        onClick={(e) => handleDelete(e, idea.id, idea.title)}
+                        onClick={(e) =>
+                          handleDeleteClick(e, idea.id, idea.title)
+                        }
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -318,6 +334,27 @@ export default function MyIdeas() {
           </Link>
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={deleteModal.isOpen}
+        onClose={() =>
+          setDeleteModal({ isOpen: false, ideaId: "", ideaTitle: "" })
+        }
+        onConfirm={handleConfirmDelete}
+        title="Delete Idea"
+        message={
+          <>
+            Are you sure you want to delete{" "}
+            <span className="font-semibold">"{deleteModal.ideaTitle}"</span>?
+            This action cannot be undone.
+          </>
+        }
+        confirmText="Delete"
+        cancelText="Cancel"
+        type="danger"
+        isLoading={deleteMutation.isPending}
+      />
     </div>
   );
 }

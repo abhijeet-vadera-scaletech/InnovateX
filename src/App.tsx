@@ -7,6 +7,8 @@ import { Loader2 } from "lucide-react";
 // Layouts
 import AuthLayout from "./layouts/AuthLayout";
 import DashboardLayout from "./layouts/DashboardLayout";
+import CanvasLayout from "./layouts/CanvasLayout";
+import EmployeeLayout from "./layouts/EmployeeLayout";
 
 // Auth Pages
 import LoginPage from "./pages/auth/LoginPage";
@@ -15,11 +17,11 @@ import JoinPage from "./pages/auth/JoinPage";
 import CreateOrgPage from "./pages/auth/CreateOrgPage";
 
 // Employee Pages
-import EmployeeDashboard from "./pages/employee/Dashboard";
-import MyIdeas from "./pages/employee/MyIdeas";
-import CreateIdea from "./pages/employee/CreateIdea";
-import EditIdea from "./pages/employee/EditIdea";
+import InnovationHub from "./pages/employee/InnovationHub";
+import MyIdeas from "./pages/employee/MyIdeasHub";
+import IdeaCanvasPage from "./pages/employee/IdeaCanvasPage";
 import IdeaDetail from "./pages/employee/IdeaDetail";
+import IdeaPreview from "./pages/employee/IdeaPreview";
 
 // Reviewer Pages
 import ReviewerDashboard from "./pages/reviewer/Dashboard";
@@ -155,39 +157,7 @@ function App() {
           element={<Navigate to={getDashboardRoute()} replace />}
         />
 
-        {/* Employee Routes */}
-        <Route
-          path="/employee/dashboard"
-          element={
-            <ProtectedRoute roles={["EMPLOYEE"]}>
-              <EmployeeDashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/employee/ideas"
-          element={
-            <ProtectedRoute roles={["EMPLOYEE"]}>
-              <MyIdeas />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/employee/ideas/new"
-          element={
-            <ProtectedRoute roles={["EMPLOYEE"]}>
-              <CreateIdea />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/employee/ideas/:id/edit"
-          element={
-            <ProtectedRoute roles={["EMPLOYEE"]}>
-              <EditIdea />
-            </ProtectedRoute>
-          }
-        />
+        {/* Employee idea detail - still uses dashboard layout */}
         <Route
           path="/employee/ideas/:id"
           element={
@@ -304,11 +274,67 @@ function App() {
             </ProtectedRoute>
           }
         />
-
-        {/* Common Routes */}
-        <Route path="/leaderboard" element={<Leaderboard />} />
-        <Route path="/profile" element={<Profile />} />
       </Route>
+
+      {/* Employee Layout Routes */}
+      <Route
+        element={
+          <ProtectedRoute roles={["EMPLOYEE"]}>
+            <EmployeeLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route path="/employee/dashboard" element={<InnovationHub />} />
+        <Route path="/employee/ideas" element={<MyIdeas />} />
+        <Route path="/employee/leaderboard" element={<Leaderboard />} />
+        <Route path="/employee/profile" element={<Profile />} />
+      </Route>
+
+      {/* Legacy routes for backward compatibility */}
+      <Route
+        path="/leaderboard"
+        element={<Navigate to="/employee/leaderboard" replace />}
+      />
+      <Route
+        path="/profile"
+        element={<Navigate to="/employee/profile" replace />}
+      />
+
+      {/* Canvas Routes - Full screen canvas experience */}
+      <Route
+        element={
+          <ProtectedRoute>
+            <CanvasLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route
+          path="/employee/ideas/new"
+          element={
+            <ProtectedRoute roles={["EMPLOYEE"]}>
+              <IdeaCanvasPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/employee/ideas/:id/edit"
+          element={
+            <ProtectedRoute roles={["EMPLOYEE"]}>
+              <IdeaCanvasPage />
+            </ProtectedRoute>
+          }
+        />
+      </Route>
+
+      {/* Full-screen preview route */}
+      <Route
+        path="/employee/ideas/:id/preview"
+        element={
+          <ProtectedRoute roles={["EMPLOYEE"]}>
+            <IdeaPreview />
+          </ProtectedRoute>
+        }
+      />
 
       {/* Root redirect */}
       <Route
