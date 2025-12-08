@@ -378,6 +378,8 @@ export default function IdeaCanvasPage() {
           onTitleChange={(title) => setMetadata((prev) => ({ ...prev, title }))}
           onSave={handleSave}
           onSubmit={handleSubmit}
+          onElementsChange={setCanvasElements}
+          onDrawingPathsChange={setDrawingPaths}
           hideTopBar
           showAIAssistant={showAIAssistant}
           onToggleAIAssistant={() => setShowAIAssistant(!showAIAssistant)}

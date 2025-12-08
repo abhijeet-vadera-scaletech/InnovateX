@@ -76,6 +76,8 @@ interface IdeaCanvasProps {
   initialDrawingPaths?: string[];
   onSave?: (elements: CanvasElement[], drawingPaths: string[]) => void;
   onSubmit?: (elements: CanvasElement[], drawingPaths: string[]) => void;
+  onElementsChange?: (elements: CanvasElement[]) => void;
+  onDrawingPathsChange?: (paths: string[]) => void;
   readOnly?: boolean;
   title?: string;
   onTitleChange?: (title: string) => void;
@@ -133,6 +135,8 @@ export function IdeaCanvas({
   initialDrawingPaths = [],
   onSave,
   onSubmit,
+  onElementsChange,
+  onDrawingPathsChange,
   readOnly = false,
   title = "Untitled Idea",
   onTitleChange,
@@ -230,6 +234,16 @@ export function IdeaCanvas({
   useEffect(() => {
     setEditedTitle(title);
   }, [title]);
+
+  // Notify parent when elements change
+  useEffect(() => {
+    onElementsChange?.(elements);
+  }, [elements, onElementsChange]);
+
+  // Notify parent when drawing paths change
+  useEffect(() => {
+    onDrawingPathsChange?.(drawingPaths);
+  }, [drawingPaths, onDrawingPathsChange]);
 
   // Update history when elements change
   const pushHistory = useCallback(

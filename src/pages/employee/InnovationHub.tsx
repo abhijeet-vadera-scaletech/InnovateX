@@ -273,111 +273,113 @@ export default function InnovationHub() {
                         )}
                       />
 
-                      <div className="p-5">
-                        {/* Header */}
-                        <div className="flex items-start justify-between mb-3">
-                          <span
-                            className={cn(
-                              "flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium border",
-                              style.bg,
-                              style.text,
-                              style.border
-                            )}
-                          >
-                            <span>{style.icon}</span>
-                            {getStatusLabel(idea.status)}
-                          </span>
+                      <div className="p-5 flex h-full flex-col justify-between">
+                        <div>
+                          {/* Header */}
+                          <div className="flex items-start justify-between mb-3">
+                            <span
+                              className={cn(
+                                "flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium border",
+                                style.bg,
+                                style.text,
+                                style.border
+                              )}
+                            >
+                              <span>{style.icon}</span>
+                              {getStatusLabel(idea.status)}
+                            </span>
 
-                          {/* Edit & Delete buttons for drafts */}
-                          {(idea.status === "DRAFT" ||
-                            idea.status === "NEEDS_REVISION") && (
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  navigate(`/employee/ideas/${idea.id}/edit`);
-                                }}
-                                className={cn(
-                                  "p-1.5 rounded-lg transition-all",
-                                  isDark
-                                    ? "bg-white/10 hover:bg-blue-500/30 text-white/60 hover:text-blue-300"
-                                    : "bg-slate-100 hover:bg-blue-100 text-slate-500 hover:text-blue-600"
-                                )}
-                                title="Edit"
-                              >
-                                <Edit3 className="w-4 h-4" />
-                              </button>
-                              {idea.status === "DRAFT" && (
+                            {/* Edit & Delete buttons for drafts */}
+                            {(idea.status === "DRAFT" ||
+                              idea.status === "NEEDS_REVISION") && (
+                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
                                 <button
-                                  onClick={(e) =>
-                                    handleDeleteClick(e, idea.id, idea.title)
-                                  }
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigate(`/employee/ideas/${idea.id}/edit`);
+                                  }}
                                   className={cn(
                                     "p-1.5 rounded-lg transition-all",
                                     isDark
-                                      ? "bg-white/10 hover:bg-red-500/30 text-white/60 hover:text-red-300"
-                                      : "bg-slate-100 hover:bg-red-100 text-slate-500 hover:text-red-600"
+                                      ? "bg-white/10 hover:bg-blue-500/30 text-white/60 hover:text-blue-300"
+                                      : "bg-slate-100 hover:bg-blue-100 text-slate-500 hover:text-blue-600"
                                   )}
-                                  title="Delete"
+                                  title="Edit"
                                 >
-                                  <Trash2 className="w-4 h-4" />
+                                  <Edit3 className="w-4 h-4" />
                                 </button>
+                                {idea.status === "DRAFT" && (
+                                  <button
+                                    onClick={(e) =>
+                                      handleDeleteClick(e, idea.id, idea.title)
+                                    }
+                                    className={cn(
+                                      "p-1.5 rounded-lg transition-all",
+                                      isDark
+                                        ? "bg-white/10 hover:bg-red-500/30 text-white/60 hover:text-red-300"
+                                        : "bg-slate-100 hover:bg-red-100 text-slate-500 hover:text-red-600"
+                                    )}
+                                    title="Delete"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Title */}
+                          <h3
+                            className={cn(
+                              "font-bold text-lg mb-2 line-clamp-2 transition-colors",
+                              isDark
+                                ? "text-white group-hover:text-purple-300"
+                                : "text-slate-900 group-hover:text-blue-600"
+                            )}
+                          >
+                            {idea.title}
+                          </h3>
+
+                          {/* Summary */}
+                          <p
+                            className={cn(
+                              "text-sm line-clamp-2 mb-4",
+                              isDark ? "text-white/40" : "text-slate-500"
+                            )}
+                          >
+                            {idea.summary}
+                          </p>
+
+                          {/* Tags */}
+                          {idea.tags && idea.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mb-4">
+                              {idea.tags.slice(0, 2).map((tag: string) => (
+                                <span
+                                  key={tag}
+                                  className={cn(
+                                    "inline-flex items-center text-xs px-2 py-0.5 rounded-full border",
+                                    isDark
+                                      ? "bg-white/5 text-white/50 border-white/5"
+                                      : "bg-slate-50 text-slate-500 border-slate-200"
+                                  )}
+                                >
+                                  <Tag className="w-3 h-3 mr-1" />
+                                  {tag}
+                                </span>
+                              ))}
+                              {idea.tags.length > 2 && (
+                                <span
+                                  className={cn(
+                                    "text-xs",
+                                    isDark ? "text-white/30" : "text-slate-400"
+                                  )}
+                                >
+                                  +{idea.tags.length - 2}
+                                </span>
                               )}
                             </div>
                           )}
                         </div>
-
-                        {/* Title */}
-                        <h3
-                          className={cn(
-                            "font-bold text-lg mb-2 line-clamp-2 transition-colors",
-                            isDark
-                              ? "text-white group-hover:text-purple-300"
-                              : "text-slate-900 group-hover:text-blue-600"
-                          )}
-                        >
-                          {idea.title}
-                        </h3>
-
-                        {/* Summary */}
-                        <p
-                          className={cn(
-                            "text-sm line-clamp-2 mb-4",
-                            isDark ? "text-white/40" : "text-slate-500"
-                          )}
-                        >
-                          {idea.summary}
-                        </p>
-
-                        {/* Tags */}
-                        {idea.tags && idea.tags.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5 mb-4">
-                            {idea.tags.slice(0, 2).map((tag: string) => (
-                              <span
-                                key={tag}
-                                className={cn(
-                                  "inline-flex items-center text-xs px-2 py-0.5 rounded-full border",
-                                  isDark
-                                    ? "bg-white/5 text-white/50 border-white/5"
-                                    : "bg-slate-50 text-slate-500 border-slate-200"
-                                )}
-                              >
-                                <Tag className="w-3 h-3 mr-1" />
-                                {tag}
-                              </span>
-                            ))}
-                            {idea.tags.length > 2 && (
-                              <span
-                                className={cn(
-                                  "text-xs",
-                                  isDark ? "text-white/30" : "text-slate-400"
-                                )}
-                              >
-                                +{idea.tags.length - 2}
-                              </span>
-                            )}
-                          </div>
-                        )}
 
                         {/* Footer */}
                         <div
